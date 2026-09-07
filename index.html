@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Portfolio Allocation Tool</title>
+    
+    <!-- Web App & Home Screen Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Allocator">
+    <meta name="theme-color" content="#0f172a">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        input[type=range] { width: 100%; accent-color: #2563eb; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 pb-12 font-sans select-none">
+
+    <div class="max-w-md mx-auto space-y-6 pt-4">
+        <!-- Header -->
+        <div class="text-center">
+            <h1 class="text-2xl font-bold tracking-tight text-white">Allocation & Compounder</h1>
+            <p class="text-xs text-slate-400 mt-1">Options, Stock & ETF Allocation Engine</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4 shadow-lg">
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Capital to Allocate</span>
+                    <span id="capVal" class="text-blue-400">$100,000</span>
+                </div>
+                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="100000">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Annual Return Target</span>
+                    <span id="targetVal" class="text-emerald-400">18%</span>
+                </div>
+                <input type="range" id="target" min="5" max="40" step="1" value="18">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Target Time Horizon</span>
+                    <span id="yearsVal" class="text-purple-400">5 Years</span>
+                </div>
+                <input type="range" id="years" min="1" max="10" step="1" value="5">
+            </div>
+        </div>
+
+        <!-- Monthly Compounded Projection -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
+            <div class="text-2xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
+            <div class="text-xs text-slate-400 mb-4">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
+            <div class="relative h-48 w-full">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recommended Breakdown -->
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Strategy Profile</h2>
+                <span id="tierBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">Moderate</span>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-900/60 rounded-lg border border-slate-700/50">
+                <div class="p-1">
+                    <div class="text-slate-400">ETFs</div>
+                    <div id="allocEtf" class="font-bold text-slate-100 mt-0.5">50%</div>
+                </div>
+                <div class="p-1 border-x border-slate-700/50">
+                    <div class="text-slate-400">Stocks</div>
+                    <div id="allocStock" class="font-bold text-slate-100 mt-0.5">30%</div>
+                </div>
+                <div class="p-1">
+                    <div class="text-slate-400">Options</div>
+                    <div id="allocOpt" class="font-bold text-slate-100 mt-0.5">20%</div>
+                </div>
+            </div>
+
+            <!-- Specific Trade Recommendations -->
+            <div class="space-y-3 pt-2" id="tradeDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        const capitalInput = document.getElementById('capital');
+        const targetInput = document.getElementById('target');
+        const yearsInput = document.getElementById('years');
+        let chart;
+
+        function formatUSD(num) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+        }
+
+        function calculateCompounding(P, r, t) {
+            const monthlyRate = (r / 100) / 12;
+            const labels = [];
+            const data = [];
+            
+            for (let month = 0; month <= t * 12; month++) {
+                const val = P * Math.pow(1 + monthlyRate, month);
+                if (month % 12 === 0) {
+                    labels.push(`Y${month / 12}`);
+                    data.push(Math.round(val));
+                }
+            }
+            return { labels, data, finalVal: data[data.length - 1] };
+        }
+
+        function updateRecommendations(targetPct, totalCap) {
+            const container = document.getElementById('tradeDetails');
+            const tierBadge = document.getElementById('tierBadge');
+            let etfPct, stockPct, optPct, tierText, badgeClass;
+            let trades = [];
+
+            if (targetPct < 12) {
+                tierText = "Conservative";
+                badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+                etfPct = 70; stockPct = 20; optPct = 10;
+                trades = [
+                    { category: "ETFs (Core Anchor)", ticker: "SPY / QQQ", detail: `$${formatUSD(totalCap * 0.70)}`, sub: "Buy and hold core market index funds." },
+                    { category: "Blue-Chip Stocks", ticker: "AAPL / MSFT", detail: `$${formatUSD(totalCap * 0.20)}`, sub: "Low-volatility megacap equity holdings." },
+                    { category: "Options Strategy", ticker: "SPY Covered Calls", detail: "30–45 DTE | 0.20 Delta", sub: "Sell OTM Calls against ETF shares for annual income boost." }
+                ];
+            } else if (targetPct <= 20) {
+                tierText = "Growth & Income";
+                badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/30";
+                etfPct = 50; stockPct = 30; optPct = 20;
+                trades = [
+                    { category: "Index ETFs", ticker: "QQQ / SPY", detail: `$${formatUSD(totalCap * 0.50)}`, sub: "Core portfolio allocation for base return." },
+                    { category: "Growth Equities", ticker: "NVDA / AMZN", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "High-quality tech market leaders." },
+                    { category: "Options Strategy", ticker: "Cash-Secured Puts / Wheel", detail: "30–45 DTE | 0.25 Delta", sub: "Sell CSPs 3-5% OTM on QQQ/NVDA to earn premium or acquire at discount." }
+                ];
+            } else {
+                tierText = "Aggressive Yield";
+                badgeClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
+                etfPct = 30; stockPct = 30; optPct = 40;
+                trades = [
+                    { category: "Growth ETFs", ticker: "QQQ / SMH", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "Tech and semiconductor sector concentration." },
+                    { category: "High-Beta Equities", ticker: "NVDA / TSLA / AMD", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "Volatile leaders driving portfolio capital growth." },
+                    { category: "Options Strategy", ticker: "PMCC / LEAPS Calls", detail: "Long: 300+ DTE (0.80 Delta)\nShort: 30 DTE (0.30 Delta)", sub: "Buy deep ITM LEAPS, sell short-dated calls against them for high leverage." }
+                ];
+            }
+
+            tierBadge.textContent = tierText;
+            tierBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-bold border ${badgeClass}`;
+            document.getElementById('allocEtf').textContent = `${etfPct}%`;
+            document.getElementById('allocStock').textContent = `${stockPct}%`;
+            document.getElementById('allocOpt').textContent = `${optPct}%`;
+
+            container.innerHTML = trades.map(t => `
+                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-700/60">
+                    <div class="flex justify-between items-start">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">${t.category}</span>
+                        <span class="text-xs font-bold text-blue-400">${t.ticker}</span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-100 mt-1">${t.detail}</div>
+                    <div class="text-xs text-slate-400 mt-1 whitespace-pre-line">${t.sub}</div>
+                </div>
+            `).join('');
+        }
+
+        function render() {
+            const P = parseFloat(capitalInput.value);
+            const r = parseFloat(targetInput.value);
+            const t = parseInt(yearsInput.value);
+
+            document.getElementById('capVal').textContent = formatUSD(P);
+            document.getElementById('targetVal').textContent = `${r}%`;
+            document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
+
+            const { labels, data, finalVal } = calculateCompounding(P, r, t);
+
+            document.getElementById('projectedVal').textContent = formatUSD(finalVal);
+            document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
+
+            updateRecommendations(r, P);
+
+            if (chart) chart.destroy();
+
+            const ctx = document.getElementById('growthChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Portfolio Value',
+                        data: data,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                        y: { 
+                            grid: { color: 'rgba(51, 65, 85, 0.5)' }, 
+                            ticks: { 
+                                color: '#94a3b8', 
+                                font: { size: 10 },
+                                callback: val => '$' + (val / 1000) + 'k'
+                            } 
+                        }
+                    }
+                }
+            });
+        }
+
+        [capitalInput, targetInput, yearsInput].forEach(el => el.addEventListener('input', render));
+        render();
+    </script>
+</body>
+</html>
