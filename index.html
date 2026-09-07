@@ -23,14 +23,24 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 pb-12 font-sans select-none">
 
-    <div class="max-w-md mx-auto space-y-6 pt-4">
+    <div class="max-w-md mx-auto space-y-5 pt-2">
         <!-- Header -->
         <div class="text-center">
             <h1 class="text-2xl font-bold tracking-tight text-white">Allocation & Compounder</h1>
             <p class="text-xs text-slate-400 mt-1">Options, Stock & ETF Allocation Engine</p>
         </div>
 
-        <!-- Controls -->
+        <!-- Market Regime / Trend Selector -->
+        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80 shadow-md">
+            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Market Environment Trend</label>
+            <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
+                <button id="btnBull" onclick="setTrend('BULLISH')" class="py-1.5 px-2 rounded-lg bg-blue-600 text-white font-semibold text-center border border-blue-500">Bullish Tech</button>
+                <button id="btnVol" onclick="setTrend('HIGH_IV')" class="py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600">High IV / Range</button>
+                <button id="btnDef" onclick="setTrend('DEFENSIVE')" class="py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600">Defensive</button>
+            </div>
+        </div>
+
+        <!-- Inputs / Controls -->
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4 shadow-lg">
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
@@ -62,7 +72,7 @@
             <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
             <div class="text-2xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
             <div class="text-xs text-slate-400 mb-4">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
-            <div class="relative h-48 w-full">
+            <div class="relative h-44 w-full">
                 <canvas id="growthChart"></canvas>
             </div>
         </div>
@@ -90,7 +100,7 @@
             </div>
 
             <!-- Specific Trade Recommendations -->
-            <div class="space-y-3 pt-2" id="tradeDetails"></div>
+            <div class="space-y-3 pt-1" id="tradeDetails"></div>
         </div>
     </div>
 
@@ -98,7 +108,27 @@
         const capitalInput = document.getElementById('capital');
         const targetInput = document.getElementById('target');
         const yearsInput = document.getElementById('years');
+        let currentTrend = 'BULLISH';
         let chart;
+
+        function setTrend(trend) {
+            currentTrend = trend;
+            const btnBull = document.getElementById('btnBull');
+            const btnVol = document.getElementById('btnVol');
+            const btnDef = document.getElementById('btnDef');
+
+            [btnBull, btnVol, btnDef].forEach(b => b.className = "py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600");
+
+            if (trend === 'BULLISH') {
+                btnBull.className = "py-1.5 px-2 rounded-lg bg-blue-600 text-white font-semibold text-center border border-blue-500";
+            } else if (trend === 'HIGH_IV') {
+                btnVol.className = "py-1.5 px-2 rounded-lg bg-purple-600 text-white font-semibold text-center border border-purple-500";
+            } else if (trend === 'DEFENSIVE') {
+                btnDef.className = "py-1.5 px-2 rounded-lg bg-emerald-600 text-white font-semibold text-center border border-emerald-500";
+            }
+
+            render();
+        }
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
@@ -129,28 +159,57 @@
                 tierText = "Conservative";
                 badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
                 etfPct = 70; stockPct = 20; optPct = 10;
+                
+                const optTickers = currentTrend === 'DEFENSIVE' ? 'XLP / XLU / SPY' : 'SPY / IWM / VTI';
+                
                 trades = [
-                    { category: "ETFs (Core Anchor)", ticker: "SPY / QQQ", detail: `$${formatUSD(totalCap * 0.70)}`, sub: "Buy and hold core market index funds." },
-                    { category: "Blue-Chip Stocks", ticker: "AAPL / MSFT", detail: `$${formatUSD(totalCap * 0.20)}`, sub: "Low-volatility megacap equity holdings." },
-                    { category: "Options Strategy", ticker: "SPY Covered Calls", detail: "30–45 DTE | 0.20 Delta", sub: "Sell OTM Calls against ETF shares for annual income boost." }
+                    { category: "ETFs (Core Anchor)", ticker: currentTrend === 'DEFENSIVE' ? "XLP / XLU / SPY" : "SPY / VTI", detail: formatUSD(totalCap * 0.70), sub: "Core broad market baseline allocations." },
+                    { category: "Blue-Chip Stocks", ticker: "AAPL / MSFT / JNJ", detail: formatUSD(totalCap * 0.20), sub: "Low-volatility dividend & quality megacaps." },
+                    { category: "Options Strategy", ticker: optTickers, detail: "30–45 DTE | Covered Call (0.20 Delta)", sub: "Sell OTM Covered Calls against core holdings for steady monthly yield." }
                 ];
             } else if (targetPct <= 20) {
                 tierText = "Growth & Income";
                 badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/30";
                 etfPct = 50; stockPct = 30; optPct = 20;
+
+                let optTicker = "QQQ / NVDA / AMZN";
+                let optDetail = "30–45 DTE | Cash-Secured Put (0.25 Delta)";
+                let optSub = "Sell CSPs 3-5% OTM on high-volume momentum growth assets.";
+
+                if (currentTrend === 'HIGH_IV') {
+                    optTicker = "TSLA / NVDA / QQQ";
+                    optDetail = "30–45 DTE | Credit Spread / Iron Condor";
+                    optSub = "Sell defined-risk spreads to capture elevated Implied Volatility rank.";
+                } else if (currentTrend === 'DEFENSIVE') {
+                    optTicker = "SPY / XLE / XLP";
+                    optDetail = "45–60 DTE | Cash-Secured Put (0.15 Delta)";
+                    optSub = "Sell conservative low-delta puts on value & index ETFs.";
+                }
+
                 trades = [
-                    { category: "Index ETFs", ticker: "QQQ / SPY", detail: `$${formatUSD(totalCap * 0.50)}`, sub: "Core portfolio allocation for base return." },
-                    { category: "Growth Equities", ticker: "NVDA / AMZN", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "High-quality tech market leaders." },
-                    { category: "Options Strategy", ticker: "Cash-Secured Puts / Wheel", detail: "30–45 DTE | 0.25 Delta", sub: "Sell CSPs 3-5% OTM on QQQ/NVDA to earn premium or acquire at discount." }
+                    { category: "Index ETFs", ticker: "QQQ / SPY / SCHG", detail: formatUSD(totalCap * 0.50), sub: "Growth index foundation." },
+                    { category: "Growth Equities", ticker: "NVDA / AMZN / GOOGL", detail: formatUSD(totalCap * 0.30), sub: "Market leaders driving core total return." },
+                    { category: "Options Strategy", ticker: optTicker, detail: optDetail, sub: optSub }
                 ];
             } else {
                 tierText = "Aggressive Yield";
                 badgeClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
                 etfPct = 30; stockPct = 30; optPct = 40;
+
+                let optTicker = "NVDA / QQQ / AMZN";
+                let optDetail = "Long: 300+ DTE (0.80 Delta)\nShort: 30 DTE (0.30 Delta)";
+                let optSub = "Poor Man's Covered Call (PMCC). Buy deep ITM LEAPS, sell short calls.";
+
+                if (currentTrend === 'HIGH_IV') {
+                    optTicker = "TSLA / AMD / SMH";
+                    optDetail = "30–45 DTE | Bull Put / Call Diagonal";
+                    optSub = "Capitalize on high IV premium expansion with leveraged spreads.";
+                }
+
                 trades = [
-                    { category: "Growth ETFs", ticker: "QQQ / SMH", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "Tech and semiconductor sector concentration." },
-                    { category: "High-Beta Equities", ticker: "NVDA / TSLA / AMD", detail: `$${formatUSD(totalCap * 0.30)}`, sub: "Volatile leaders driving portfolio capital growth." },
-                    { category: "Options Strategy", ticker: "PMCC / LEAPS Calls", detail: "Long: 300+ DTE (0.80 Delta)\nShort: 30 DTE (0.30 Delta)", sub: "Buy deep ITM LEAPS, sell short-dated calls against them for high leverage." }
+                    { category: "Growth ETFs", ticker: "QQQ / SMH / SOXX", detail: formatUSD(totalCap * 0.30), sub: "Semiconductor and tech momentum sector concentration." },
+                    { category: "High-Beta Equities", ticker: "NVDA / TSLA / AMD", detail: formatUSD(totalCap * 0.30), sub: "High implied-volatility growth drivers." },
+                    { category: "Options Strategy", ticker: optTicker, detail: optDetail, sub: optSub }
                 ];
             }
 
