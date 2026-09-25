@@ -55,7 +55,7 @@
                     <span class="text-slate-300">Annual Return Target</span>
                     <span id="targetVal" class="text-emerald-400">18%</span>
                 </div>
-                <input type="range" id="target" min="5" max="40" step="1" value="18">
+                <input type="range" id="target" min="5" max="250" step="1" value="18">
             </div>
 
             <div>
@@ -65,11 +65,22 @@
                 </div>
                 <input type="range" id="years" min="1" max="10" step="1" value="5">
             </div>
+
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Compounding Frequency</span>
+                    <span id="freqVal" class="text-amber-400">Monthly</span>
+                </div>
+                <input type="range" id="freq" min="0" max="2" step="1" value="0">
+                <div class="flex justify-between text-[10px] text-slate-500 mt-0.5 px-0.5">
+                    <span>Monthly</span><span>Biweekly</span><span>Weekly</span>
+                </div>
+            </div>
         </div>
 
         <!-- Monthly Compounded Projection -->
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-            <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
+            <h2 id="projTitle" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
             <div class="text-2xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
             <div class="text-xs text-slate-400 mb-4">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
             <div class="relative h-44 w-full">
@@ -102,12 +113,27 @@
             <!-- Specific Trade Recommendations -->
             <div class="space-y-3 pt-1" id="tradeDetails"></div>
         </div>
+
+        <!-- Stock Universe -->
+        <details class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
+            <summary class="p-4 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                <span>Stock Universe (<span id="universeCount">50</span>)</span>
+                <span class="normal-case font-medium text-slate-500">Mkt caps as of <span id="universeDate"></span></span>
+            </summary>
+            <div id="universeList" class="px-4 pb-3 text-xs"></div>
+        </details>
     </div>
 
     <script>
         const capitalInput = document.getElementById('capital');
         const targetInput = document.getElementById('target');
         const yearsInput = document.getElementById('years');
+        const freqInput = document.getElementById('freq');
+        const FREQUENCIES = [
+            { label: 'Monthly', periods: 12 },
+            { label: 'Biweekly', periods: 26 },
+            { label: 'Weekly', periods: 52 }
+        ];
         let currentTrend = 'BULLISH';
         let chart;
 
@@ -134,82 +160,207 @@
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
         }
 
-        function calculateCompounding(P, r, t) {
-            const monthlyRate = (r / 100) / 12;
+        function calculateCompounding(P, r, t, periodsPerYear) {
+            const periodRate = (r / 100) / periodsPerYear;
             const labels = [];
             const data = [];
-            
-            for (let month = 0; month <= t * 12; month++) {
-                const val = P * Math.pow(1 + monthlyRate, month);
-                if (month % 12 === 0) {
-                    labels.push(`Y${month / 12}`);
-                    data.push(Math.round(val));
-                }
+
+            for (let year = 0; year <= t; year++) {
+                const val = P * Math.pow(1 + periodRate, periodsPerYear * year);
+                labels.push(`Y${year}`);
+                data.push(Math.round(val));
             }
             return { labels, data, finalVal: data[data.length - 1] };
         }
+
+        function formatCompact(val) {
+            const abs = Math.abs(val);
+            if (abs >= 1e12) return '$' + +(val / 1e12).toFixed(1) + 'T';
+            if (abs >= 1e9) return '$' + +(val / 1e9).toFixed(1) + 'B';
+            if (abs >= 1e6) return '$' + +(val / 1e6).toFixed(1) + 'M';
+            if (abs >= 1e3) return '$' + +(val / 1e3).toFixed(0) + 'k';
+            return '$' + val;
+        }
+
+        // Top 50 US companies by market cap (all $100B+). Snapshot as of Sep 25, 2026 — update manually.
+        // Tags drive the recommendation pools: growth, quality, highbeta, semis, defensive, dividend, value, energy, recentIPO
+        const UNIVERSE_DATE = 'Sep 25, 2026';
+        const UNIVERSE = [
+            { t: 'NVDA', name: 'Nvidia', cap: 5000, tags: ['growth', 'highbeta', 'semis'] },
+            { t: 'AAPL', name: 'Apple', cap: 4900, tags: ['growth', 'quality'] },
+            { t: 'GOOGL', name: 'Alphabet', cap: 3900, tags: ['growth', 'quality'] },
+            { t: 'MSFT', name: 'Microsoft', cap: 2800, tags: ['growth', 'quality'] },
+            { t: 'AMZN', name: 'Amazon', cap: 2500, tags: ['growth'] },
+            { t: 'AVGO', name: 'Broadcom', cap: 1800, tags: ['growth', 'highbeta', 'semis'] },
+            { t: 'SPCX', name: 'SpaceX', cap: 1500, tags: ['highbeta', 'recentIPO'] },
+            { t: 'META', name: 'Meta Platforms', cap: 1500, tags: ['growth'] },
+            { t: 'TSLA', name: 'Tesla', cap: 1200, tags: ['highbeta'] },
+            { t: 'LLY', name: 'Eli Lilly', cap: 1100, tags: ['growth'] },
+            { t: 'MU', name: 'Micron', cap: 1000, tags: ['highbeta', 'semis'] },
+            { t: 'JPM', name: 'JPMorgan Chase', cap: 939, tags: ['value', 'dividend'] },
+            { t: 'WMT', name: 'Walmart', cap: 871, tags: ['defensive'] },
+            { t: 'AMD', name: 'AMD', cap: 851, tags: ['highbeta', 'semis'] },
+            { t: 'V', name: 'Visa', cap: 677, tags: ['quality'] },
+            { t: 'XOM', name: 'Exxon Mobil', cap: 651, tags: ['energy', 'value', 'dividend'] },
+            { t: 'JNJ', name: 'Johnson & Johnson', cap: 635, tags: ['defensive', 'dividend'] },
+            { t: 'MA', name: 'Mastercard', cap: 477, tags: ['quality'] },
+            { t: 'INTC', name: 'Intel', cap: 466, tags: ['highbeta', 'semis'] },
+            { t: 'ABBV', name: 'AbbVie', cap: 458, tags: ['defensive', 'dividend'] },
+            { t: 'CSCO', name: 'Cisco', cap: 450, tags: ['value', 'dividend'] },
+            { t: 'BAC', name: 'Bank of America', cap: 436, tags: ['value', 'dividend'] },
+            { t: 'AMAT', name: 'Applied Materials', cap: 426, tags: ['highbeta', 'semis'] },
+            { t: 'COST', name: 'Costco', cap: 415, tags: ['defensive', 'quality'] },
+            { t: 'CAT', name: 'Caterpillar', cap: 409, tags: ['value'] },
+            { t: 'CVX', name: 'Chevron', cap: 388, tags: ['energy', 'value', 'dividend'] },
+            { t: 'UNH', name: 'UnitedHealth', cap: 382, tags: ['defensive'] },
+            { t: 'LRCX', name: 'Lam Research', cap: 382, tags: ['highbeta', 'semis'] },
+            { t: 'GE', name: 'GE Aerospace', cap: 367, tags: ['growth'] },
+            { t: 'KO', name: 'Coca-Cola', cap: 354, tags: ['defensive', 'dividend'] },
+            { t: 'PG', name: 'Procter & Gamble', cap: 343, tags: ['defensive', 'dividend'] },
+            { t: 'MS', name: 'Morgan Stanley', cap: 337, tags: ['value'] },
+            { t: 'HD', name: 'Home Depot', cap: 332, tags: ['dividend'] },
+            { t: 'ORCL', name: 'Oracle', cap: 331, tags: ['growth', 'highbeta'] },
+            { t: 'MRK', name: 'Merck', cap: 324, tags: ['defensive', 'dividend'] },
+            { t: 'GS', name: 'Goldman Sachs', cap: 313, tags: ['value'] },
+            { t: 'PM', name: 'Philip Morris', cap: 301, tags: ['defensive', 'dividend'] },
+            { t: 'PLTR', name: 'Palantir', cap: 295, tags: ['highbeta'] },
+            { t: 'NFLX', name: 'Netflix', cap: 292, tags: ['growth'] },
+            { t: 'RTX', name: 'RTX', cap: 287, tags: ['defensive'] },
+            { t: 'DELL', name: 'Dell', cap: 283, tags: ['highbeta'] },
+            { t: 'KLAC', name: 'KLA', cap: 275, tags: ['semis', 'quality'] },
+            { t: 'GEV', name: 'GE Vernova', cap: 270, tags: ['highbeta'] },
+            { t: 'PANW', name: 'Palo Alto Networks', cap: 264, tags: ['growth'] },
+            { t: 'WFC', name: 'Wells Fargo', cap: 261, tags: ['value', 'dividend'] },
+            { t: 'TXN', name: 'Texas Instruments', cap: 255, tags: ['semis', 'dividend'] },
+            { t: 'LIN', name: 'Linde', cap: 237, tags: ['quality'] },
+            { t: 'AXP', name: 'American Express', cap: 223, tags: ['value'] },
+            { t: 'ANET', name: 'Arista Networks', cap: 219, tags: ['highbeta'] },
+            { t: 'SNDK', name: 'Sandisk', cap: 213, tags: ['highbeta', 'semis'] }
+        ];
+
+        // Top-n names (by market cap) carrying any of the given tags. Recent IPOs are skipped for options.
+        function pick(tags, n, { forOptions = false, exclude = [] } = {}) {
+            return UNIVERSE
+                .filter(s => s.tags.some(tag => tags.includes(tag)))
+                .filter(s => !(forOptions && s.tags.includes('recentIPO')))
+                .filter(s => !exclude.includes(s.t))
+                .sort((a, b) => b.cap - a.cap)
+                .slice(0, n)
+                .map(s => s.t);
+        }
+
+        function formatCap(b) {
+            return b >= 1000 ? `$${+(b / 1000).toFixed(2)}T` : `$${b}B`;
+        }
+
+        function renderUniverse() {
+            document.getElementById('universeDate').textContent = UNIVERSE_DATE;
+            document.getElementById('universeCount').textContent = UNIVERSE.length;
+            document.getElementById('universeList').innerHTML = UNIVERSE.map((s, i) => `
+                <div class="flex items-center justify-between py-1.5 border-b border-slate-700/40 last:border-0">
+                    <div class="min-w-0">
+                        <span class="text-slate-500 w-6 inline-block">${i + 1}</span>
+                        <span class="font-bold text-slate-100">${s.t}</span>
+                        <span class="text-slate-400 ml-1">${s.name}</span>
+                    </div>
+                    <span class="text-slate-300 font-semibold shrink-0 ml-2">${formatCap(s.cap)}</span>
+                </div>
+            `).join('');
+        }
+
 
         function updateRecommendations(targetPct, totalCap) {
             const container = document.getElementById('tradeDetails');
             const tierBadge = document.getElementById('tierBadge');
             let etfPct, stockPct, optPct, tierText, badgeClass;
             let trades = [];
+            const N = 5; // names per stock bucket
+            const stockCard = (category, tickers, pct, sub) => ({
+                category, tickers, sub,
+                detail: `${formatUSD(totalCap * pct)} · ~${formatUSD(totalCap * pct / tickers.length)} each`
+            });
 
             if (targetPct < 12) {
                 tierText = "Conservative";
                 badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
                 etfPct = 70; stockPct = 20; optPct = 10;
-                
-                const optTickers = currentTrend === 'DEFENSIVE' ? 'XLP / XLU / SPY' : 'SPY / IWM / VTI';
-                
+
+                let etfs = ['SPY', 'VTI'];
+                let stocks = pick(['quality'], N);
+                let stockSub = "Wide-moat quality megacaps from the top-50 universe.";
+                if (currentTrend === 'HIGH_IV') {
+                    stocks = pick(['dividend'], N);
+                    stockSub = "Dividend payers — richer call premium to sell while IV is elevated.";
+                } else if (currentTrend === 'DEFENSIVE') {
+                    etfs = ['XLP', 'XLU', 'SPY'];
+                    stocks = pick(['defensive'], N);
+                    stockSub = "Staples, healthcare & defense — low-beta names from the top-50 universe.";
+                }
+
                 trades = [
-                    { category: "ETFs (Core Anchor)", ticker: currentTrend === 'DEFENSIVE' ? "XLP / XLU / SPY" : "SPY / VTI", detail: formatUSD(totalCap * 0.70), sub: "Core broad market baseline allocations." },
-                    { category: "Blue-Chip Stocks", ticker: "AAPL / MSFT / JNJ", detail: formatUSD(totalCap * 0.20), sub: "Low-volatility dividend & quality megacaps." },
-                    { category: "Options Strategy", ticker: optTickers, detail: "30–45 DTE | Covered Call (0.20 Delta)", sub: "Sell OTM Covered Calls against core holdings for steady monthly yield." }
+                    { category: "ETFs (Core Anchor)", tickers: etfs, detail: formatUSD(totalCap * 0.70), sub: "Core broad market baseline allocations." },
+                    stockCard("Blue-Chip Stocks", stocks, 0.20, stockSub),
+                    { category: "Options Strategy", tickers: [etfs[0], ...stocks.slice(0, 3)], detail: "30–45 DTE | Covered Call (0.20 Delta)", sub: "Sell OTM covered calls against core holdings for steady monthly yield." }
                 ];
             } else if (targetPct <= 20) {
                 tierText = "Growth & Income";
                 badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/30";
                 etfPct = 50; stockPct = 30; optPct = 20;
 
-                let optTicker = "QQQ / NVDA / AMZN";
+                let stocks = pick(['growth'], N);
+                let stockSub = "Largest growth leaders driving core total return.";
+                let optTickers = ['QQQ', ...pick(['growth'], 3, { forOptions: true })];
                 let optDetail = "30–45 DTE | Cash-Secured Put (0.25 Delta)";
                 let optSub = "Sell CSPs 3-5% OTM on high-volume momentum growth assets.";
 
                 if (currentTrend === 'HIGH_IV') {
-                    optTicker = "TSLA / NVDA / QQQ";
+                    stocks = pick(['quality'], N);
+                    stockSub = "Hold steadier quality names; let the spreads harvest volatility.";
+                    optTickers = ['QQQ', ...pick(['highbeta'], 4, { forOptions: true })];
                     optDetail = "30–45 DTE | Credit Spread / Iron Condor";
-                    optSub = "Sell defined-risk spreads to capture elevated Implied Volatility rank.";
+                    optSub = "Sell defined-risk spreads to capture elevated implied volatility.";
                 } else if (currentTrend === 'DEFENSIVE') {
-                    optTicker = "SPY / XLE / XLP";
+                    stocks = pick(['value', 'dividend'], N);
+                    stockSub = "Value & dividend megacaps — financials, energy, healthcare.";
+                    optTickers = ['SPY', 'XLP', ...pick(['defensive'], 3, { forOptions: true })];
                     optDetail = "45–60 DTE | Cash-Secured Put (0.15 Delta)";
-                    optSub = "Sell conservative low-delta puts on value & index ETFs.";
+                    optSub = "Sell conservative low-delta puts on value & defensive names.";
                 }
 
                 trades = [
-                    { category: "Index ETFs", ticker: "QQQ / SPY / SCHG", detail: formatUSD(totalCap * 0.50), sub: "Growth index foundation." },
-                    { category: "Growth Equities", ticker: "NVDA / AMZN / GOOGL", detail: formatUSD(totalCap * 0.30), sub: "Market leaders driving core total return." },
-                    { category: "Options Strategy", ticker: optTicker, detail: optDetail, sub: optSub }
+                    { category: "Index ETFs", tickers: currentTrend === 'DEFENSIVE' ? ['SPY', 'SCHD', 'XLV'] : ['QQQ', 'SPY', 'SCHG'], detail: formatUSD(totalCap * 0.50), sub: "Index foundation." },
+                    stockCard("Equities", stocks, 0.30, stockSub),
+                    { category: "Options Strategy", tickers: optTickers, detail: optDetail, sub: optSub }
                 ];
             } else {
                 tierText = "Aggressive Yield";
                 badgeClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
                 etfPct = 30; stockPct = 30; optPct = 40;
 
-                let optTicker = "NVDA / QQQ / AMZN";
+                let etfs = ['QQQ', 'SMH', 'SOXX'];
+                let stocks = pick(['highbeta'], N);
+                let stockSub = "Highest-beta names in the top-50 universe.";
+                let optTickers = pick(['growth'], 4, { forOptions: true });
                 let optDetail = "Long: 300+ DTE (0.80 Delta)\nShort: 30 DTE (0.30 Delta)";
                 let optSub = "Poor Man's Covered Call (PMCC). Buy deep ITM LEAPS, sell short calls.";
 
                 if (currentTrend === 'HIGH_IV') {
-                    optTicker = "TSLA / AMD / SMH";
+                    optTickers = ['SMH', ...pick(['semis'], 4, { forOptions: true, exclude: ['NVDA', 'AVGO'] })];
                     optDetail = "30–45 DTE | Bull Put / Call Diagonal";
-                    optSub = "Capitalize on high IV premium expansion with leveraged spreads.";
+                    optSub = "Capitalize on high IV premium with leveraged spreads.";
+                } else if (currentTrend === 'DEFENSIVE') {
+                    etfs = ['QQQ', 'SPY', 'XLV'];
+                    stocks = pick(['quality'], N);
+                    stockSub = "Keep growth exposure but tilt to steadier quality megacaps.";
+                    optTickers = pick(['quality'], 4, { forOptions: true });
+                    optDetail = "Long: 300+ DTE (0.80 Delta)\nShort: 30–45 DTE (0.20 Delta)";
+                    optSub = "PMCC on lower-beta quality names with further-OTM short calls for more cushion.";
                 }
 
                 trades = [
-                    { category: "Growth ETFs", ticker: "QQQ / SMH / SOXX", detail: formatUSD(totalCap * 0.30), sub: "Semiconductor and tech momentum sector concentration." },
-                    { category: "High-Beta Equities", ticker: "NVDA / TSLA / AMD", detail: formatUSD(totalCap * 0.30), sub: "High implied-volatility growth drivers." },
-                    { category: "Options Strategy", ticker: optTicker, detail: optDetail, sub: optSub }
+                    { category: "Growth ETFs", tickers: etfs, detail: formatUSD(totalCap * 0.30), sub: currentTrend === 'DEFENSIVE' ? "Broad growth with a healthcare hedge." : "Semiconductor and tech momentum sector concentration." },
+                    stockCard("High-Conviction Equities", stocks, 0.30, stockSub),
+                    { category: "Options Strategy", tickers: optTickers, detail: optDetail, sub: optSub }
                 ];
             }
 
@@ -221,26 +372,30 @@
 
             container.innerHTML = trades.map(t => `
                 <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-700/60">
-                    <div class="flex justify-between items-start">
-                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">${t.category}</span>
-                        <span class="text-xs font-bold text-blue-400">${t.ticker}</span>
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">${t.category}</span>
+                    <div class="flex flex-wrap gap-1 mt-1.5">
+                        ${t.tickers.map(x => `<span class="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/25 text-xs font-bold text-blue-400">${x}</span>`).join('')}
                     </div>
-                    <div class="text-sm font-bold text-slate-100 mt-1">${t.detail}</div>
-                    <div class="text-xs text-slate-400 mt-1 whitespace-pre-line">${t.sub}</div>
+                    <div class="text-sm font-bold text-slate-100 mt-1.5 whitespace-pre-line">${t.detail}</div>
+                    <div class="text-xs text-slate-400 mt-1">${t.sub}</div>
                 </div>
             `).join('');
         }
+
 
         function render() {
             const P = parseFloat(capitalInput.value);
             const r = parseFloat(targetInput.value);
             const t = parseInt(yearsInput.value);
+            const freq = FREQUENCIES[parseInt(freqInput.value)];
 
             document.getElementById('capVal').textContent = formatUSD(P);
             document.getElementById('targetVal').textContent = `${r}%`;
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
+            document.getElementById('freqVal').textContent = freq.label;
+            document.getElementById('projTitle').textContent = `${freq.label} Compounded Projection`;
 
-            const { labels, data, finalVal } = calculateCompounding(P, r, t);
+            const { labels, data, finalVal } = calculateCompounding(P, r, t, freq.periods);
 
             document.getElementById('projectedVal').textContent = formatUSD(finalVal);
             document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
@@ -276,7 +431,7 @@
                             ticks: { 
                                 color: '#94a3b8', 
                                 font: { size: 10 },
-                                callback: val => '$' + (val / 1000) + 'k'
+                                callback: val => formatCompact(val)
                             } 
                         }
                     }
@@ -284,7 +439,8 @@
             });
         }
 
-        [capitalInput, targetInput, yearsInput].forEach(el => el.addEventListener('input', render));
+        [capitalInput, targetInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
+        renderUniverse();
         render();
     </script>
 </body>
