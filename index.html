@@ -19,6 +19,8 @@
     <style>
         body { -webkit-tap-highlight-color: transparent; }
         input[type=range] { width: 100%; accent-color: #2563eb; }
+        input, select, textarea { -webkit-user-select: text; user-select: text; }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 pb-12 font-sans select-none">
@@ -30,6 +32,13 @@
             <p class="text-xs text-slate-400 mt-1">Options, Stock & ETF Allocation Engine</p>
         </div>
 
+        <!-- View Tabs -->
+        <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-800 rounded-xl border border-slate-700 text-sm font-semibold">
+            <button id="tabAlloc" onclick="showTab('alloc')" class="py-2 rounded-lg bg-blue-600 text-white">Allocator</button>
+            <button id="tabSpread" onclick="showTab('spread')" class="py-2 rounded-lg text-slate-400">Spread Manager</button>
+        </div>
+
+        <div id="viewAlloc" class="space-y-5">
         <!-- Market Regime / Trend Selector -->
         <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80 shadow-md">
             <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Market Environment Trend</label>
@@ -122,6 +131,113 @@
             </summary>
             <div id="universeList" class="px-4 pb-3 text-xs"></div>
         </details>
+        </div>
+
+        <!-- ===================== SPREAD MANAGER ===================== -->
+        <div id="viewSpread" class="space-y-5 hidden">
+            <datalist id="tickerList"></datalist>
+
+            <!-- Setup -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg space-y-3">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">New Bull Put Spread</h2>
+                <div class="grid grid-cols-2 gap-2">
+<label class="block"><span class="text-[11px] text-slate-400">Ticker</span><input id="sTicker" type="text" value="" list="tickerList" autocapitalize="characters" placeholder="e.g. QQQ" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Underlying price</span><input id="sPrice" type="number" inputmode="decimal" value="" placeholder="From broker" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Implied vol (%)</span><input id="sIv" type="number" inputmode="decimal" value="" placeholder="e.g. 28" step="0.1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Days to expiry</span><input id="sDte" type="number" inputmode="decimal" value="15" step="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Spread width ($)</span><input id="sWidth" type="number" inputmode="decimal" value="5" step="0.5" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Strike increment ($)</span><input id="sStep" type="number" inputmode="decimal" value="1" step="0.5" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Contracts</span><input id="sContracts" type="number" inputmode="decimal" value="1" step="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Risk-free rate (%)</span><input id="sRate" type="number" inputmode="decimal" value="4" step="0.1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+                </div>
+                <div>
+                    <div class="flex justify-between text-sm font-semibold mb-1">
+                        <span class="text-slate-300">Delta target</span>
+                        <span id="sDeltaVal" class="text-blue-400">0.20</span>
+                    </div>
+                    <input type="range" id="sDelta" min="0.05" max="0.40" step="0.01" value="0.20">
+                    <div class="grid grid-cols-2 gap-1.5 mt-2 text-xs font-medium">
+                        <button id="modeShort" onclick="setDeltaMode('short')" class="py-1.5 rounded-lg border">Short put Δ</button>
+                        <button id="modeNet" onclick="setDeltaMode('net')" class="py-1.5 rounded-lg border">Net spread Δ</button>
+                    </div>
+                </div>
+                <div id="setupOut"></div>
+            </div>
+
+            <!-- Monitor -->
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Position Monitor</h2>
+                    <button id="closePosBtn" onclick="manualClose()" class="hidden text-xs text-red-400 border border-red-500/40 rounded-lg px-2 py-1">Close position</button>
+                </div>
+                <div id="noPos" class="text-sm text-slate-400">No open position. Size a spread above and tap <span class="text-slate-200 font-semibold">Open this position</span>.</div>
+                <div id="posBody" class="space-y-3 hidden">
+                    <div id="posTitle" class="text-sm font-bold text-slate-100"></div>
+                    <div class="grid grid-cols-2 gap-2">
+<label class="block"><span class="text-[11px] text-slate-400">Short put</span><input id="mPs" type="number" inputmode="decimal" value=""  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Long put</span><input id="mPl" type="number" inputmode="decimal" value=""  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Short call</span><input id="mCs" type="number" inputmode="decimal" value="" placeholder="—" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Long call</span><input id="mCl" type="number" inputmode="decimal" value="" placeholder="—" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Net credit / share</span><input id="mCredit" type="number" inputmode="decimal" value="" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Contracts</span><input id="mContracts" type="number" inputmode="decimal" value="" step="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+                    </div>
+                    <div class="text-[11px] text-slate-500">Edit the legs and credit to match your actual fills.</div>
+                    <div class="border-t border-slate-700 pt-3 grid grid-cols-2 gap-2">
+<label class="block"><span class="text-[11px] text-slate-400">Price now</span><input id="mPrice" type="number" inputmode="decimal" value="" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">IV now (%)</span><input id="mIv" type="number" inputmode="decimal" value="" step="0.1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Expiration</span><input id="mExpiry" type="date" value=""  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Days left</span><input id="mDays" type="number" inputmode="decimal" value="" step="1" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+                        <label class="block col-span-2"><span class="text-[11px] text-slate-400">Cost to close now / share (optional — from broker, otherwise estimated)</span><input id="mMark" type="number" inputmode="decimal" step="0.01" placeholder="Auto" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+                    </div>
+                    <div id="statusBox"></div>
+                    <div id="metrics" class="grid grid-cols-3 gap-2 text-center text-xs"></div>
+                    <div>
+                        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Price alerts to set</div>
+                        <div id="levels" class="text-xs"></div>
+                    </div>
+                    <div class="relative h-48 w-full"><canvas id="payoffChart"></canvas></div>
+                    <div class="flex gap-3 text-[11px] text-slate-400 justify-center">
+                        <span><span class="inline-block w-3 h-0.5 bg-emerald-400 align-middle"></span> At expiration</span>
+                        <span><span class="inline-block w-3 h-0.5 bg-blue-400 align-middle"></span> Today (est.)</span>
+                    </div>
+                    <div>
+                        <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Trade log</div>
+                        <div id="history" class="text-xs text-slate-400 space-y-1"></div>
+                    </div>
+                </div>
+                <div id="journalWrap" class="hidden border-t border-slate-700 pt-3">
+                    <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Closed trades</div>
+                    <div id="journal" class="text-xs space-y-1"></div>
+                </div>
+            </div>
+
+            <!-- Rules -->
+            <details class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
+                <summary class="p-4 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider">Management Rules &amp; Playbook</summary>
+                <div class="px-4 pb-4 space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+<label class="block"><span class="text-[11px] text-slate-400">Take profit at (% of max)</span><input id="rProfit" type="number" inputmode="decimal" value="50"  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Stop: loss = × credit</span><input id="rStop" type="number" inputmode="decimal" value="2" step="0.25" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Adjust at short Δ</span><input id="rAdj" type="number" inputmode="decimal" value="0.30" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Roll at short Δ</span><input id="rRoll" type="number" inputmode="decimal" value="0.45" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Time exit (days left)</span><input id="rTime" type="number" inputmode="decimal" value="3"  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Call-side Δ when adding IC</span><input id="rIc" type="number" inputmode="decimal" value="0.20" step="0.01" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+<label class="block"><span class="text-[11px] text-slate-400">Roll out by (+days)</span><input id="rRollDays" type="number" inputmode="decimal" value="14"  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-base text-slate-100 focus:outline-none focus:border-blue-500"></label>
+                    </div>
+                    <button onclick="resetRules()" class="text-xs text-slate-400 underline">Reset to defaults</button>
+                    <div class="text-xs text-slate-300 space-y-2 leading-relaxed">
+                        <p><span class="font-bold text-slate-100">Checked in this order:</span></p>
+                        <p><span class="text-red-400 font-semibold">1. Time exit.</span> Inside the time-exit window, close regardless. Gamma and assignment risk outweigh the little premium left.</p>
+                        <p><span class="text-red-400 font-semibold">2. Stop loss.</span> Close when the loss reaches the set multiple of the credit collected.</p>
+                        <p><span class="text-emerald-400 font-semibold">3. Take profit.</span> Close at the profit target. With a week or more left, redeploy a fresh spread from the new price.</p>
+                        <p><span class="text-orange-400 font-semibold">4. Roll.</span> When a short strike's delta reaches the roll level (or price breaks it), roll down/up and out for a net credit. If no credit is available, close instead.</p>
+                        <p><span class="text-amber-400 font-semibold">5. Adjust.</span> When the short put's delta reaches the adjust level, sell a call spread to form an iron condor. If it's already a condor, move the untested side closer to collect more credit.</p>
+                        <p><span class="text-blue-400 font-semibold">6. Press the winner.</span> If price runs away from the put spread early (short Δ has fallen to ~60% of the target or less, 25%+ of max profit, a week or more left, profit target not yet hit), roll the put spread up to the target delta for extra credit.</p>
+                        <p class="text-slate-500">Prices and deltas are Black-Scholes estimates from the IV you enter. Real chains have skew (puts usually price richer), so check fills and the cost to close against your broker.</p>
+                    </div>
+                </div>
+            </details>
+        </div>
     </div>
 
     <script>
@@ -440,6 +556,522 @@
         }
 
         [capitalInput, targetInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
+        // ===================== SPREAD MANAGER =====================
+        const $ = id => document.getElementById(id);
+        const num = id => parseFloat($(id).value);
+        const rnd = x => Math.round(x * 100) / 100;
+        const usd2 = x => (x < 0 ? '-$' : '$') + Math.abs(x).toFixed(2);
+        const signed = x => (x >= 0 ? '+' : '-') + formatUSD(Math.abs(x));
+
+        const store = {
+            get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+            set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+            del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+        };
+
+        const DEFAULT_RULES = { rProfit: 50, rStop: 2, rAdj: 0.30, rRoll: 0.45, rTime: 3, rIc: 0.20, rRollDays: 14 };
+        let deltaMode = 'short';
+        let position = store.get('spread.position');
+        let journal = store.get('spread.journal') || [];
+        let lastSetup = null;
+        let currentAction = null;
+        let payoffChart = null;
+        let activeTab = 'alloc';
+
+        // ---------- Math ----------
+        function normCdf(x) {
+            const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+            const sign = x < 0 ? -1 : 1;
+            const z = Math.abs(x) / Math.SQRT2;
+            const t = 1 / (1 + p * z);
+            const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-z * z);
+            return 0.5 * (1 + sign * y);
+        }
+
+        function normInv(p) { // Acklam's approximation
+            const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239];
+            const b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572];
+            const c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783];
+            const d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+            const pl = 0.02425;
+            let q, r;
+            if (p < pl) { q = Math.sqrt(-2 * Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+            if (p > 1 - pl) { q = Math.sqrt(-2 * Math.log(1 - p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+            q = p - 0.5; r = q * q;
+            return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+        }
+
+        function bs(S, K, days, r, v, type) {
+            const T = Math.max(days, 0) / 365;
+            if (T < 1e-6 || v <= 0) {
+                const intrinsic = type === 'put' ? Math.max(K - S, 0) : Math.max(S - K, 0);
+                const delta = type === 'put' ? (S < K ? -1 : 0) : (S > K ? 1 : 0);
+                return { price: intrinsic, delta };
+            }
+            const sq = v * Math.sqrt(T);
+            const d1 = (Math.log(S / K) + (r + v * v / 2) * T) / sq;
+            const d2 = d1 - sq;
+            if (type === 'call') return { price: S * normCdf(d1) - K * Math.exp(-r * T) * normCdf(d2), delta: normCdf(d1) };
+            return { price: K * Math.exp(-r * T) * normCdf(-d2) - S * normCdf(-d1), delta: normCdf(d1) - 1 };
+        }
+
+        // Value of a short vertical (what it costs to buy back), short-leg |delta| and position delta (per share)
+        function spreadVal(S, kShort, kLong, days, r, v, type) {
+            const a = bs(S, kShort, days, r, v, type), b = bs(S, kLong, days, r, v, type);
+            return { value: a.price - b.price, shortDelta: Math.abs(a.delta), netDelta: b.delta - a.delta };
+        }
+
+        function findSpread(S, days, r, v, target, mode, width, step, type) {
+            const K0 = type === 'put' ? Math.floor(S / step) * step : Math.ceil(S / step) * step;
+            let best = null;
+            for (let i = 0; i < 1000; i++) {
+                const K = rnd(type === 'put' ? K0 - i * step : K0 + i * step);
+                const L = rnd(type === 'put' ? K - width : K + width);
+                if (K <= 0 || L <= 0) break;
+                const sv = spreadVal(S, K, L, days, r, v, type);
+                const d = mode === 'net' ? Math.abs(sv.netDelta) : sv.shortDelta;
+                const err = Math.abs(d - target);
+                if (!best || err < best.err) best = { short: K, long: L, credit: sv.value, shortDelta: sv.shortDelta, netDelta: sv.netDelta, err };
+                if (sv.shortDelta < 0.005) break;
+            }
+            return best;
+        }
+
+        // Probability price finishes above lo (and below hi, if given)
+        function probBetween(S, lo, hi, days, r, v) {
+            const T = Math.max(days, 0.01) / 365, sq = v * Math.sqrt(T);
+            const above = K => K <= 0 ? 1 : normCdf((Math.log(S / K) + (r - v * v / 2) * T) / sq);
+            return above(lo) - (hi ? above(hi) : 0);
+        }
+
+        // Underlying price at which a short strike reaches a given |delta|
+        function priceAtDelta(K, delta, days, r, v, type) {
+            const T = Math.max(days, 0.5) / 365, sq = v * Math.sqrt(T);
+            const d1 = type === 'put' ? normInv(1 - delta) : normInv(delta);
+            return K * Math.exp(d1 * sq - (r + v * v / 2) * T);
+        }
+
+        // ---------- Dates ----------
+        function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }
+        function addDays(iso, n) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + Math.round(n)); return d.toISOString().slice(0, 10); }
+        function daysBetween(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 864e5); }
+
+        // ---------- Tabs ----------
+        function showTab(tab) {
+            activeTab = tab;
+            $('viewAlloc').classList.toggle('hidden', tab !== 'alloc');
+            $('viewSpread').classList.toggle('hidden', tab !== 'spread');
+            $('tabAlloc').className = 'py-2 rounded-lg ' + (tab === 'alloc' ? 'bg-blue-600 text-white' : 'text-slate-400');
+            $('tabSpread').className = 'py-2 rounded-lg ' + (tab === 'spread' ? 'bg-blue-600 text-white' : 'text-slate-400');
+            if (tab === 'spread') { computeSetup(); renderMonitor(); }
+        }
+
+        // ---------- Rules ----------
+        function rules() {
+            const o = {};
+            for (const k in DEFAULT_RULES) { const v = num(k); o[k] = isFinite(v) ? v : DEFAULT_RULES[k]; }
+            return o;
+        }
+        function loadRules() {
+            const saved = store.get('spread.rules') || {};
+            for (const k in DEFAULT_RULES) $(k).value = saved[k] ?? DEFAULT_RULES[k];
+        }
+        function resetRules() { store.del('spread.rules'); loadRules(); renderMonitor(); }
+
+        // ---------- Setup ----------
+        function setDeltaMode(mode) {
+            deltaMode = mode;
+            const on = 'py-1.5 rounded-lg border bg-blue-600 text-white border-blue-500';
+            const off = 'py-1.5 rounded-lg border bg-slate-700 text-slate-300 border-slate-600';
+            $('modeShort').className = mode === 'short' ? on : off;
+            $('modeNet').className = mode === 'net' ? on : off;
+            computeSetup();
+        }
+
+        function stat(label, value, cls = 'text-slate-100') {
+            return `<div class="p-2 bg-slate-900/70 rounded-lg border border-slate-700/50"><div class="text-[10px] text-slate-400">${label}</div><div class="font-bold ${cls} mt-0.5">${value}</div></div>`;
+        }
+
+        function computeSetup() {
+            $('sDeltaVal').textContent = num('sDelta').toFixed(2);
+            const S = num('sPrice'), v = num('sIv') / 100, days = num('sDte'), r = (num('sRate') || 0) / 100;
+            const width = num('sWidth'), step = num('sStep') || 1, n = Math.max(1, Math.round(num('sContracts') || 1));
+            const out = $('setupOut');
+            lastSetup = null;
+            if (!(S > 0 && v > 0 && days > 0 && width > 0)) {
+                out.innerHTML = `<div class="text-sm text-slate-400">Enter the underlying's price and implied volatility (from your broker's chain) to size the spread.</div>`;
+                return;
+            }
+            const target = num('sDelta');
+            const best = findSpread(S, days, r, v, target, deltaMode, width, step, 'put');
+            const credit = best.credit, maxLoss = width - credit, be = best.short - credit;
+            const pop = probBetween(S, be, null, days, r, v);
+            const mult = 100 * n;
+            lastSetup = { S, ivPct: v * 100, days, n, width, ...best };
+            const warn = deltaMode === 'net' && best.err > 0.03
+                ? `<div class="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">A $${width}-wide spread can't reach ${target.toFixed(2)} net Δ here (closest: ${best.netDelta.toFixed(2)}). Widen the spread or switch to short-put Δ.</div>` : '';
+            out.innerHTML = `
+                ${warn}
+                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-700/60">
+                    <div class="text-sm font-bold text-slate-100">Sell ${best.short} put / Buy ${best.long} put</div>
+                    <div class="text-xs text-slate-400 mt-0.5">${days} days · short Δ ${best.shortDelta.toFixed(2)} · net Δ ${best.netDelta.toFixed(2)} per share</div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2">
+                    ${stat('Est. credit', `${usd2(credit)}<div class="text-[10px] text-slate-400 font-normal">${formatUSD(credit * mult)} total</div>`, 'text-emerald-400')}
+                    ${stat('Max loss', formatUSD(maxLoss * mult), 'text-red-400')}
+                    ${stat('Breakeven', be.toFixed(2))}
+                    ${stat('Prob. of profit', Math.round(pop * 100) + '%')}
+                    ${stat('Return on risk', Math.round(credit / maxLoss * 100) + '%')}
+                    ${stat('Take profit at', usd2(credit * (1 - rules().rProfit / 100)))}
+                </div>
+                <button onclick="openPosition()" class="w-full mt-2 py-2.5 rounded-lg bg-blue-600 text-white font-semibold text-sm">${position ? 'Replace open position with this' : 'Open this position'}</button>
+            `;
+        }
+
+        // ---------- Position ----------
+        function savePosition() { if (position) store.set('spread.position', position); else store.del('spread.position'); }
+        function log(text) { position.history.push({ date: todayISO(), text }); }
+
+        function openPosition() {
+            if (!lastSetup) return;
+            if (position && !confirm('Replace the open position? It will not be logged as closed.')) return;
+            const s = lastSetup;
+            position = {
+                ticker: ($('sTicker').value || 'Position').toUpperCase(),
+                putShort: s.short, putLong: s.long, callShort: null, callLong: null,
+                credit: rnd(s.credit), contracts: s.n,
+                expiry: addDays(todayISO(), s.days),
+                price: s.S, iv: s.ivPct, history: []
+            };
+            log(`Opened ${s.short}/${s.long} put spread, ${s.days} DTE, credit ${usd2(position.credit)}`);
+            savePosition();
+            fillMonitor();
+            renderMonitor();
+            computeSetup();
+            $('posBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function fillMonitor() {
+            if (!position) return;
+            const p = position;
+            $('mPs').value = p.putShort; $('mPl').value = p.putLong;
+            $('mCs').value = p.callShort ?? ''; $('mCl').value = p.callLong ?? '';
+            $('mCredit').value = p.credit; $('mContracts').value = p.contracts;
+            $('mExpiry').value = p.expiry;
+            $('mDays').value = Math.max(0, daysBetween(todayISO(), p.expiry));
+            $('mPrice').value = p.price; $('mIv').value = p.iv;
+            $('mMark').value = '';
+        }
+
+        function readMonitor() {
+            const p = position;
+            const f = id => { const v = num(id); return isFinite(v) ? v : null; };
+            p.putShort = f('mPs') ?? p.putShort; p.putLong = f('mPl') ?? p.putLong;
+            p.callShort = f('mCs'); p.callLong = f('mCl');
+            p.credit = f('mCredit') ?? p.credit;
+            p.contracts = Math.max(1, Math.round(f('mContracts') ?? p.contracts));
+            p.price = f('mPrice') ?? p.price; p.iv = f('mIv') ?? p.iv;
+            savePosition();
+        }
+
+        function closeTrade(text, pnlTotal) {
+            log(text);
+            journal.unshift({ date: todayISO(), ticker: position.ticker, legs: legsText(position), pnl: pnlTotal });
+            journal = journal.slice(0, 25);
+            store.set('spread.journal', journal);
+            position = null;
+            savePosition();
+        }
+
+        function legsText(p) {
+            const put = `${p.putShort}/${p.putLong}P`;
+            return p.callShort ? `${put} + ${p.callShort}/${p.callLong}C` : put;
+        }
+
+        function manualClose() {
+            if (!position || !confirm('Close this position at the current mark?')) return;
+            const m = lastEval;
+            closeTrade(`Closed manually at ${usd2(m.mark)}`, m.pnl * m.mult);
+            renderMonitor(); computeSetup();
+        }
+
+        function closeAndRedeploy() {
+            const m = lastEval;
+            closeTrade(`Took profit, closed at ${usd2(m.mark)}`, m.pnl * m.mult);
+            $('sPrice').value = rnd(m.S); $('sIv').value = m.ivPct; $('sDte').value = 15;
+            $('sTicker').value = m.ticker;
+            renderMonitor(); computeSetup();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function applyAction() { if (currentAction && currentAction.apply) currentAction.apply(); }
+
+        // ---------- Evaluation ----------
+        let lastEval = null;
+
+        function evaluate() {
+            const p = position, R = rules();
+            const S = num('mPrice'), ivPct = num('mIv'), v = ivPct / 100, days = Math.max(0, num('mDays')), r = (num('sRate') || 0) / 100;
+            const step = num('sStep') || 1, target = num('sDelta');
+            const hasCall = p.callShort > 0 && p.callLong > 0;
+            const putW = p.putShort - p.putLong, callW = hasCall ? p.callLong - p.callShort : 0;
+            const put = spreadVal(S, p.putShort, p.putLong, days, r, v, 'put');
+            const call = hasCall ? spreadVal(S, p.callShort, p.callLong, days, r, v, 'call') : { value: 0, shortDelta: 0, netDelta: 0 };
+            const est = put.value + call.value;
+            const manual = parseFloat($('mMark').value);
+            const mark = isFinite(manual) && manual >= 0 ? manual : est;
+            const credit = p.credit, pnl = credit - mark, pct = credit > 0 ? pnl / credit : 0;
+            const mult = 100 * p.contracts;
+            const maxLoss = Math.max(putW, callW) - credit;
+            const beP = p.putShort - credit, beC = hasCall ? p.callShort + credit : null;
+            const e = { S, ivPct, v, days, r, step, target, hasCall, putW, callW, put, call, est, mark, credit, pnl, pct, mult, maxLoss, beP, beC, ticker: p.ticker };
+            e.action = decide(e, R);
+            return e;
+        }
+
+        // Roll the tested side out in time, moving it as far away from price as a net credit allows.
+        // The untested side (if any) rolls out at the same strikes.
+        function planRoll(e, R, testedSide) {
+            const p = position, nd = e.days + R.rRollDays, step = e.step;
+            const val = (ks, kl, type) => spreadVal(e.S, ks, kl, nd, e.r, e.v, type).value;
+            const other = e.hasCall ? (testedSide === 'put' ? val(p.callShort, p.callLong, 'call') : val(p.putShort, p.putLong, 'put')) : 0;
+            let best = null;
+            for (let i = 0; i < 200; i++) {
+                const ks = rnd(testedSide === 'put' ? p.putShort - i * step : p.callShort + i * step);
+                const kl = rnd(testedSide === 'put' ? ks - e.putW : ks + e.callW);
+                if (ks <= 0 || kl <= 0) break;
+                const net = val(ks, kl, testedSide) + other - e.mark;
+                if (net <= 0.01) break;
+                best = { ks, kl, net };
+            }
+            return best ? { nd, side: testedSide, ...best } : { nd, side: testedSide, net: val(testedSide === 'put' ? p.putShort : p.callShort, testedSide === 'put' ? p.putLong : p.callLong, testedSide) + other - e.mark };
+        }
+
+        function decide(e, R) {
+            const p = position;
+            // 1. Time exit
+            if (e.days <= R.rTime) {
+                return { level: 'close', title: 'Close: time exit', body: `${e.days} day(s) left. Gamma and assignment risk now outweigh the remaining premium.`,
+                    lines: [`Buy back at ~${usd2(e.mark)} → P&L ${signed(e.pnl * e.mult)}`],
+                    applyLabel: 'Log as closed', apply: () => { closeTrade(`Time exit, closed at ${usd2(e.mark)}`, e.pnl * e.mult); renderMonitor(); computeSetup(); } };
+            }
+            // 2. Stop loss
+            if (e.pnl <= -R.rStop * e.credit) {
+                return { level: 'close', title: 'Close: stop loss hit', body: `Loss has reached ${R.rStop}× the credit collected. Take the defined loss rather than hoping.`,
+                    lines: [`Buy back at ~${usd2(e.mark)} → P&L ${signed(e.pnl * e.mult)}`],
+                    applyLabel: 'Log as closed', apply: () => { closeTrade(`Stop loss, closed at ${usd2(e.mark)}`, e.pnl * e.mult); renderMonitor(); computeSetup(); } };
+            }
+            // 3. Profit target
+            if (e.pct >= R.rProfit / 100) {
+                const redeploy = e.days >= 7;
+                return { level: 'profit', title: 'Take profit', body: `You've captured ${Math.round(e.pct * 100)}% of max profit. The remaining premium isn't worth the risk it carries.` + (redeploy ? ` With ${e.days} days left, close and redeploy a fresh spread from ${e.S.toFixed(2)}.` : ''),
+                    lines: [`Buy back at ~${usd2(e.mark)} → P&L ${signed(e.pnl * e.mult)}`],
+                    applyLabel: redeploy ? 'Close & set up new spread' : 'Log as closed',
+                    apply: redeploy ? closeAndRedeploy : () => { closeTrade(`Took profit at ${usd2(e.mark)}`, e.pnl * e.mult); renderMonitor(); computeSetup(); } };
+            }
+            // 4. Roll (either short strike deep in trouble)
+            const putBad = e.put.shortDelta >= R.rRoll || e.S <= p.putShort;
+            const callBad = e.hasCall && (e.call.shortDelta >= R.rRoll || e.S >= p.callShort);
+            if (putBad || callBad) {
+                const side = putBad ? 'put' : 'call';
+                const plan = planRoll(e, R, side);
+                const dir = side === 'put' ? 'down' : 'up';
+                if (plan.ks) {
+                    const moved = side === 'put' ? p.putShort - plan.ks : plan.ks - p.callShort;
+                    const lines = [`Buy back current position ~${usd2(e.mark)}`,
+                        `Sell ${plan.ks}/${plan.kl} ${side} spread (${plan.nd} DTE)${moved > 0 ? `, ${dir} ${rnd(moved)} ${moved === 1 ? 'pt' : 'pts'}` : ', same strikes'}`];
+                    if (e.hasCall) lines.push(side === 'put' ? `Sell ${p.callShort}/${p.callLong} call spread (${plan.nd} DTE, same strikes)` : `Sell ${p.putShort}/${p.putLong} put spread (${plan.nd} DTE, same strikes)`);
+                    lines.push(`Est. net credit ${usd2(plan.net)} / share`);
+                    return { level: 'roll', title: `Roll ${dir} and out`, body: `The short ${side} is being tested (Δ ${(putBad ? e.put.shortDelta : e.call.shortDelta).toFixed(2)}). Buy time: roll ${R.rRollDays} days further out, moving the strike ${dir} as far as a net credit allows. Never roll for a debit.`,
+                        lines, applyLabel: 'Apply roll', apply: () => {
+                            const q = position;
+                            if (side === 'put') { q.putShort = plan.ks; q.putLong = plan.kl; } else { q.callShort = plan.ks; q.callLong = plan.kl; }
+                            q.credit = rnd(q.credit + plan.net);
+                            q.expiry = addDays(todayISO(), plan.nd);
+                            log(`Rolled ${dir} & out to ${legsText(q)}, ${plan.nd} DTE, net credit ${usd2(plan.net)}`);
+                            savePosition(); fillMonitor(); $('mPrice').value = e.S; $('mIv').value = e.ivPct; readMonitor(); renderMonitor();
+                        } };
+                }
+                return { level: 'close', title: 'Close: no credit roll available', body: `The short ${side} is being tested, but even rolling out at the same strikes would cost a debit (${usd2(plan.net)}). Paying to stay in adds risk. Close and reset.`,
+                    lines: [`Buy back at ~${usd2(e.mark)} → P&L ${signed(e.pnl * e.mult)}`],
+                    applyLabel: 'Log as closed', apply: () => { closeTrade(`Closed (no credit roll) at ${usd2(e.mark)}`, e.pnl * e.mult); renderMonitor(); computeSetup(); } };
+            }
+            // 5a. Put side under pressure, no call side yet → complete the condor
+            if (!e.hasCall && e.put.shortDelta >= R.rAdj) {
+                const c = findSpread(e.S, e.days, e.r, e.v, R.rIc, 'short', e.putW, e.step, 'call');
+                const newCredit = e.credit + c.credit;
+                const newBeP = position.putShort - newCredit, newBeC = c.short + newCredit;
+                const pop = probBetween(e.S, newBeP, newBeC, e.days, e.r, e.v);
+                return { level: 'adjust', title: 'Adjust: add a call spread (iron condor)', body: `Short put Δ is ${e.put.shortDelta.toFixed(2)}. Selling a call spread above collects more credit, lowering your downside breakeven. Trade-off: you now have risk if price reverses sharply up.`,
+                    lines: [`Sell ${c.short} call / Buy ${c.long} call (Δ ${c.shortDelta.toFixed(2)}), same expiry`, `Est. added credit ${usd2(c.credit)} → total ${usd2(newCredit)}`, `Breakevens ${newBeP.toFixed(2)} – ${newBeC.toFixed(2)}, prob. of profit ~${Math.round(pop * 100)}%`],
+                    applyLabel: 'Apply: add call spread', apply: () => {
+                        const q = position;
+                        q.callShort = c.short; q.callLong = c.long; q.credit = rnd(newCredit);
+                        log(`Added ${c.short}/${c.long} call spread for ${usd2(c.credit)} → iron condor`);
+                        savePosition(); fillMonitor(); $('mPrice').value = e.S; $('mIv').value = e.ivPct; readMonitor(); renderMonitor();
+                    } };
+            }
+            // 5b. Condor with one side tested → move the untested side closer
+            if (e.hasCall && (e.put.shortDelta >= R.rAdj || e.call.shortDelta >= R.rAdj)) {
+                const putTested = e.put.shortDelta >= e.call.shortDelta;
+                const tgt = R.rAdj;
+                const cur = putTested ? e.call : e.put;
+                const n = putTested
+                    ? findSpread(e.S, e.days, e.r, e.v, tgt, 'short', e.callW, e.step, 'call')
+                    : findSpread(e.S, e.days, e.r, e.v, tgt, 'short', e.putW, e.step, 'put');
+                const valid = putTested ? n.short > position.putShort : n.short < position.callShort;
+                const gain = n.credit - cur.value;
+                if (valid && gain > 0.01 && cur.shortDelta < tgt - 0.05) {
+                    const side = putTested ? 'call' : 'put';
+                    return { level: 'adjust', title: `Adjust: roll the untested ${side} spread closer`, body: `The ${putTested ? 'put' : 'call'} side is being tested. Moving the ${side} spread toward price collects more credit and widens that breakeven. Keep the two sides from crossing.`,
+                        lines: [`Buy back ${side} spread ~${usd2(cur.value)}`, `Sell ${n.short}/${n.long} ${side} spread ~${usd2(n.credit)} (Δ ${n.shortDelta.toFixed(2)})`, `Est. added credit ${usd2(gain)}`],
+                        applyLabel: `Apply: roll ${side} spread`, apply: () => {
+                            const q = position;
+                            if (putTested) { q.callShort = n.short; q.callLong = n.long; } else { q.putShort = n.short; q.putLong = n.long; }
+                            q.credit = rnd(q.credit + gain);
+                            log(`Rolled ${side} spread to ${n.short}/${n.long} for ${usd2(gain)} credit`);
+                            savePosition(); fillMonitor(); $('mPrice').value = e.S; $('mIv').value = e.ivPct; readMonitor(); renderMonitor();
+                        } };
+                }
+            }
+            // 6. Press the winner: roll put spread up
+            if (!e.hasCall && e.days >= 7 && e.put.shortDelta <= e.target * 0.6 && e.pct >= 0.25) {
+                const n = findSpread(e.S, e.days, e.r, e.v, e.target, 'short', e.putW, e.step, 'put');
+                const gain = n.credit - e.put.value;
+                if (gain > 0.01 && n.short > position.putShort) {
+                    return { level: 'opportunity', title: 'Opportunity: roll the put spread up', body: `Price has moved your way and the short put has decayed fast (Δ ${e.put.shortDelta.toFixed(2)}). Rolling up to Δ ${e.target.toFixed(2)} collects fresh premium. Alternative: just take the ${Math.round(e.pct * 100)}% and redeploy.`,
+                        lines: [`Buy back ${position.putShort}/${position.putLong} ~${usd2(e.put.value)}`, `Sell ${n.short}/${n.long} put spread ~${usd2(n.credit)}, same expiry`, `Est. added credit ${usd2(gain)}. Locks in current gain, restarts risk from a higher level`],
+                        applyLabel: 'Apply: roll up', apply: () => {
+                            const q = position;
+                            q.putShort = n.short; q.putLong = n.long; q.credit = rnd(q.credit + gain);
+                            log(`Rolled put spread up to ${n.short}/${n.long} for ${usd2(gain)} credit`);
+                            savePosition(); fillMonitor(); $('mPrice').value = e.S; $('mIv').value = e.ivPct; readMonitor(); renderMonitor();
+                        } };
+                }
+            }
+            // 7. Hold
+            return { level: 'hold', title: 'Hold', body: `No trigger hit. ${Math.round(e.pct * 100)}% of max profit captured with ${e.days} days left. Let theta work and set the price alerts below.`, lines: [] };
+        }
+
+        const LEVEL_STYLE = {
+            hold: 'border-slate-600 bg-slate-900/70 text-slate-200',
+            profit: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300',
+            opportunity: 'border-blue-500/50 bg-blue-500/10 text-blue-300',
+            adjust: 'border-amber-500/50 bg-amber-500/10 text-amber-300',
+            roll: 'border-orange-500/50 bg-orange-500/10 text-orange-300',
+            close: 'border-red-500/50 bg-red-500/10 text-red-300'
+        };
+
+        function renderMonitor() {
+            const has = !!position;
+            $('noPos').classList.toggle('hidden', has);
+            $('posBody').classList.toggle('hidden', !has);
+            $('closePosBtn').classList.toggle('hidden', !has);
+            $('journalWrap').classList.toggle('hidden', journal.length === 0);
+            $('journal').innerHTML = journal.map(j => `
+                <div class="flex justify-between"><span class="text-slate-400">${j.date} · <span class="text-slate-200 font-semibold">${j.ticker}</span> ${j.legs}</span>
+                <span class="font-semibold ${j.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}">${signed(j.pnl)}</span></div>`).join('');
+            if (!has) { if (payoffChart) { payoffChart.destroy(); payoffChart = null; } return; }
+
+            const e = evaluate();
+            lastEval = e;
+            const p = position, R = rules();
+            currentAction = e.action;
+            $('posTitle').textContent = `${p.ticker} · ${e.hasCall ? 'Iron condor' : 'Bull put spread'} · exp ${p.expiry}`;
+
+            const a = e.action;
+            $('statusBox').innerHTML = `
+                <div class="p-3 rounded-lg border ${LEVEL_STYLE[a.level]}">
+                    <div class="text-sm font-bold">${a.title}</div>
+                    <div class="text-xs text-slate-300 mt-1">${a.body}</div>
+                    ${a.lines.length ? `<div class="mt-2 space-y-0.5 text-xs text-slate-100">${a.lines.map(l => `<div>• ${l}</div>`).join('')}</div>` : ''}
+                    ${a.apply ? `<button onclick="applyAction()" class="mt-2.5 w-full py-2 rounded-lg bg-slate-100 text-slate-900 text-sm font-bold">${a.applyLabel}</button>` : ''}
+                </div>`;
+
+            $('metrics').innerHTML = [
+                stat('P&L now', signed(e.pnl * e.mult), e.pnl >= 0 ? 'text-emerald-400' : 'text-red-400'),
+                stat('% of max profit', Math.round(e.pct * 100) + '%'),
+                stat('Cost to close', usd2(e.mark) + (isFinite(parseFloat($('mMark').value)) ? '' : '<span class="text-[10px] text-slate-500"> est</span>')),
+                stat('Short put Δ', e.put.shortDelta.toFixed(2), e.put.shortDelta >= R.rAdj ? 'text-amber-400' : 'text-slate-100'),
+                stat(e.hasCall ? 'Short call Δ' : 'Position Δ', e.hasCall ? e.call.shortDelta.toFixed(2) : ((e.put.netDelta) * e.mult).toFixed(1), e.hasCall && e.call.shortDelta >= R.rAdj ? 'text-amber-400' : 'text-slate-100'),
+                stat('Max loss', formatUSD(e.maxLoss * e.mult), 'text-red-400')
+            ].join('');
+
+            const row = (label, val, cls = 'text-slate-100') => `<div class="flex justify-between py-1 border-b border-slate-700/40 last:border-0"><span class="text-slate-400">${label}</span><span class="font-semibold ${cls}">${val}</span></div>`;
+            let lv = '';
+            if (e.hasCall) {
+                lv += row(`Roll trigger (call Δ ${R.rRoll.toFixed(2)})`, `above ${priceAtDelta(p.callShort, R.rRoll, e.days, e.r, e.v, 'call').toFixed(2)}`, 'text-orange-400');
+                lv += row(`Adjust trigger (call Δ ${R.rAdj.toFixed(2)})`, `above ${priceAtDelta(p.callShort, R.rAdj, e.days, e.r, e.v, 'call').toFixed(2)}`, 'text-amber-400');
+                lv += row('Upper breakeven (expiry)', e.beC.toFixed(2));
+            }
+            lv += row(`Adjust trigger (put Δ ${R.rAdj.toFixed(2)})`, `below ${priceAtDelta(p.putShort, R.rAdj, e.days, e.r, e.v, 'put').toFixed(2)}`, 'text-amber-400');
+            lv += row(`Roll trigger (put Δ ${R.rRoll.toFixed(2)})`, `below ${priceAtDelta(p.putShort, R.rRoll, e.days, e.r, e.v, 'put').toFixed(2)}`, 'text-orange-400');
+            lv += row('Lower breakeven (expiry)', e.beP.toFixed(2));
+            lv += row(`Profit target (${R.rProfit}%)`, `close at ≤ ${usd2(e.credit * (1 - R.rProfit / 100))}`, 'text-emerald-400');
+            lv += row(`Stop loss (${R.rStop}× credit)`, `close at ≥ ${usd2(e.credit * (1 + R.rStop))}`, 'text-red-400');
+            lv += row('Time exit', `on ${addDays(p.expiry, -R.rTime)}`);
+            $('levels').innerHTML = lv;
+
+            $('history').innerHTML = p.history.slice().reverse().map(h => `<div><span class="text-slate-500">${h.date}</span> ${h.text}</div>`).join('');
+
+            drawPayoff(e);
+        }
+
+        function drawPayoff(e) {
+            if (activeTab !== 'spread') return;
+            const p = position;
+            const lo = Math.min(p.putLong, e.S) - e.putW * 1.5;
+            const hi = Math.max(e.hasCall ? p.callLong : p.putShort + e.putW, e.S) + Math.max(e.putW, e.callW) * 1.5;
+            const expPts = [], nowPts = [];
+            for (let i = 0; i <= 100; i++) {
+                const x = lo + (hi - lo) * i / 100;
+                const putIntr = Math.min(Math.max(p.putShort - x, 0), e.putW);
+                const callIntr = e.hasCall ? Math.min(Math.max(x - p.callShort, 0), e.callW) : 0;
+                expPts.push({ x, y: (e.credit - putIntr - callIntr) * e.mult });
+                const nowVal = spreadVal(x, p.putShort, p.putLong, e.days, e.r, e.v, 'put').value
+                    + (e.hasCall ? spreadVal(x, p.callShort, p.callLong, e.days, e.r, e.v, 'call').value : 0);
+                nowPts.push({ x, y: (e.credit - nowVal) * e.mult });
+            }
+            if (payoffChart) payoffChart.destroy();
+            payoffChart = new Chart($('payoffChart').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [
+                    { data: expPts, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.08)', fill: 'origin', pointRadius: 0, borderWidth: 2, tension: 0 },
+                    { data: nowPts, borderColor: '#60a5fa', borderDash: [5, 4], pointRadius: 0, borderWidth: 2, tension: 0.2 },
+                    { type: 'scatter', data: [{ x: e.S, y: e.pnl * e.mult }], pointRadius: 5, pointBackgroundColor: '#f8fafc', pointBorderColor: '#60a5fa', pointBorderWidth: 2 }
+                ] },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => 'Price ' + i[0].parsed.x.toFixed(2), label: i => signed(i.parsed.y) } } },
+                    scales: {
+                        x: { type: 'linear', min: lo, max: hi, grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 6, callback: v => v.toFixed(0) } },
+                        y: { grid: { color: ctx => ctx.tick.value === 0 ? 'rgba(148,163,184,0.6)' : 'rgba(51,65,85,0.5)' }, ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => signed(v) } }
+                    }
+                }
+            });
+        }
+
+        // ---------- Wiring ----------
+        (function initSpread() {
+            $('tickerList').innerHTML = ['SPY', 'QQQ', 'IWM', 'SMH', 'XLE', 'XLP', 'XLU', ...UNIVERSE.map(s => s.t)].map(t => `<option value="${t}">`).join('');
+            loadRules();
+            setDeltaMode('short');
+            ['sTicker', 'sPrice', 'sIv', 'sDte', 'sWidth', 'sStep', 'sContracts', 'sRate', 'sDelta'].forEach(id => $(id).addEventListener('input', () => { computeSetup(); if (position) renderMonitor(); }));
+            Object.keys(DEFAULT_RULES).forEach(id => $(id).addEventListener('input', () => {
+                store.set('spread.rules', rules()); computeSetup(); if (position) renderMonitor();
+            }));
+            ['mPs', 'mPl', 'mCs', 'mCl', 'mCredit', 'mContracts', 'mPrice', 'mIv', 'mDays', 'mMark'].forEach(id => $(id).addEventListener('input', () => {
+                if (!position) return; readMonitor(); renderMonitor();
+            }));
+            $('mExpiry').addEventListener('input', () => {
+                if (!position || !$('mExpiry').value) return;
+                position.expiry = $('mExpiry').value;
+                $('mDays').value = Math.max(0, daysBetween(todayISO(), position.expiry));
+                readMonitor(); renderMonitor();
+            });
+            if (position) fillMonitor();
+        })();
+
         renderUniverse();
         render();
     </script>
