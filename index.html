@@ -91,7 +91,8 @@
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
             <h2 id="projTitle" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
             <div class="text-2xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
-            <div class="text-xs text-slate-400 mb-4">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
+            <div class="text-xs text-slate-400">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
+            <div id="periodNote" class="text-xs text-slate-400 mt-2 mb-4 p-2 bg-slate-900/60 rounded-lg border border-slate-700/50"></div>
             <div class="relative h-44 w-full">
                 <canvas id="growthChart"></canvas>
             </div>
@@ -277,7 +278,8 @@
         }
 
         function calculateCompounding(P, r, t, periodsPerYear) {
-            const periodRate = (r / 100) / periodsPerYear;
+            // Target is an effective annual return: find the per-period rate that compounds to exactly r% per year
+            const periodRate = Math.pow(1 + r / 100, 1 / periodsPerYear) - 1;
             const labels = [];
             const data = [];
 
@@ -515,6 +517,27 @@
 
             document.getElementById('projectedVal').textContent = formatUSD(finalVal);
             document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
+            // Required return per period for every frequency, so the selected annual target is hit exactly
+            const periodsTable = [
+                { label: 'Monthly', n: 12 }, { label: 'Biweekly', n: 26 },
+                { label: 'Weekly', n: 52 }, { label: 'Daily', n: 252, note: 'trading days' }
+            ];
+            const cells = periodsTable.map(f => {
+                const pct = (Math.pow(1 + r / 100, 1 / f.n) - 1) * 100;
+                const active = f.label === freq.label;
+                return `<div class="p-1.5 rounded-lg border ${active ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-700/50'}">
+                    <div class="text-[10px] ${active ? 'text-amber-300' : 'text-slate-400'}">${f.label}</div>
+                    <div class="font-bold ${active ? 'text-amber-400' : 'text-slate-100'} mt-0.5">${pct.toFixed(pct < 1 ? 3 : 2)}%</div>
+                    <div class="text-[10px] text-slate-500">${formatUSD(P * pct / 100)}</div>
+                </div>`;
+            }).join('');
+            const naive = r / freq.periods;
+            const naiveAnnual = (Math.pow(1 + naive / 100, freq.periods) - 1) * 100;
+            document.getElementById('periodNote').innerHTML = `
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Required return per period for ${r}% / year</div>
+                <div class="grid grid-cols-4 gap-1.5 text-center">${cells}</div>
+                <div class="text-[10px] text-slate-500 mt-1.5">$ = first-period gain on starting capital (grows as the account compounds). Daily uses 252 trading days.
+                Simply dividing ${r}% by ${freq.periods} (${naive.toFixed(2)}% per period) would compound to ${Math.round(naiveAnnual)}% a year.</div>`;
 
             updateRecommendations(r, P);
 
