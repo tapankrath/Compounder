@@ -62,7 +62,7 @@
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Annual Return Target</span>
-                    <span id="targetVal" class="text-emerald-400">18%</span>
+                    <span class="text-emerald-400 flex items-center"><input id="targetVal" type="number" inputmode="decimal" step="0.1" min="0" class="w-20 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
                 </div>
                 <input type="range" id="target" min="5" max="250" step="1" value="18">
             </div>
@@ -501,14 +501,88 @@
         }
 
 
+
+        // ===== Two-way annual ⇄ per-period target =====
+        let annualTarget = parseFloat(targetInput.value);
+        const PERIODS = [
+            { label: 'Monthly', n: 12 }, { label: 'Biweekly', n: 26 },
+            { label: 'Weekly', n: 52 }, { label: 'Daily', n: 252 }
+        ];
+        const fmtPct = (x, d) => String(+x.toFixed(d));
+        const perFromAnnual = (a, n) => (Math.pow(1 + a / 100, 1 / n) - 1) * 100;
+        const annualFromPer = (p, n) => (Math.pow(1 + p / 100, n) - 1) * 100;
+
+        function setAnnualTarget(a) {
+            annualTarget = a;
+            targetInput.value = Math.min(Math.max(Math.round(a), +targetInput.min), +targetInput.max);
+        }
+
+        function initPeriodGrid() {
+            document.getElementById('periodNote').innerHTML = `
+                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Required return per period <span class="normal-case font-medium text-slate-500">· tap a % to edit</span></div>
+                <div class="grid grid-cols-4 gap-1.5 text-center">
+                    ${PERIODS.map(f => `
+                        <label id="cell_${f.label}" class="block p-1.5 rounded-lg border border-slate-700/50 cursor-text">
+                            <div id="lbl_${f.label}" class="text-[10px] text-slate-400">${f.label}</div>
+                            <div class="flex items-center justify-center mt-0.5">
+                                <input id="per_${f.label}" type="number" inputmode="decimal" step="0.01"
+                                    class="w-full min-w-0 bg-transparent text-center font-bold text-slate-100 focus:outline-none border-b border-dashed border-slate-600 focus:border-amber-400">
+                                <span class="font-bold text-slate-400 text-xs">%</span>
+                            </div>
+                            <div id="usd_${f.label}" class="text-[10px] text-slate-500 mt-0.5"></div>
+                        </label>`).join('')}
+                </div>
+                <div id="periodFoot" class="text-[10px] text-slate-500 mt-1.5"></div>`;
+
+            PERIODS.forEach(f => {
+                const el = document.getElementById(`per_${f.label}`);
+                el.addEventListener('input', () => {
+                    const p = parseFloat(el.value);
+                    if (!isFinite(p) || p <= -100) return;
+                    setAnnualTarget(annualFromPer(p, f.n));
+                    render();
+                });
+                el.addEventListener('blur', render);
+            });
+
+            const tv = document.getElementById('targetVal');
+            tv.addEventListener('input', () => {
+                const a = parseFloat(tv.value);
+                if (!isFinite(a) || a <= -100) return;
+                setAnnualTarget(a);
+                render();
+            });
+            tv.addEventListener('blur', render);
+        }
+
+        function updatePeriodGrid(P, r, freq) {
+            PERIODS.forEach(f => {
+                const pct = perFromAnnual(r, f.n);
+                const active = f.label === freq.label;
+                const input = document.getElementById(`per_${f.label}`);
+                if (document.activeElement !== input) input.value = fmtPct(pct, pct < 1 ? 3 : 2);
+                input.classList.toggle('text-amber-400', active);
+                input.classList.toggle('text-slate-100', !active);
+                document.getElementById(`cell_${f.label}`).className = `block p-1.5 rounded-lg border cursor-text ${active ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-700/50'}`;
+                document.getElementById(`lbl_${f.label}`).className = `text-[10px] ${active ? 'text-amber-300' : 'text-slate-400'}`;
+                document.getElementById(`usd_${f.label}`).textContent = formatUSD(P * pct / 100);
+            });
+            const naive = r / freq.periods;
+            const over = r > +targetInput.max ? ` Target is above the slider's ${targetInput.max}% max; the slider is pinned but the exact value is used.` : '';
+            document.getElementById('periodFoot').textContent =
+                `Edit any % to set the annual target (${fmtPct(r, 2)}% / yr), or edit the annual % above. $ = first-period gain on starting capital. Daily = 252 trading days. ` +
+                `Dividing ${fmtPct(r, 2)}% by ${freq.periods} (${naive.toFixed(2)}%) would compound to ${Math.round(annualFromPer(naive, freq.periods))}%/yr.` + over;
+        }
+
         function render() {
             const P = parseFloat(capitalInput.value);
-            const r = parseFloat(targetInput.value);
+            const r = annualTarget;
             const t = parseInt(yearsInput.value);
             const freq = FREQUENCIES[parseInt(freqInput.value)];
 
             document.getElementById('capVal').textContent = formatUSD(P);
-            document.getElementById('targetVal').textContent = `${r}%`;
+            const tv = document.getElementById('targetVal');
+            if (document.activeElement !== tv) tv.value = fmtPct(r, 2);
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
             document.getElementById('freqVal').textContent = freq.label;
             document.getElementById('projTitle').textContent = `${freq.label} Compounded Projection`;
@@ -517,27 +591,7 @@
 
             document.getElementById('projectedVal').textContent = formatUSD(finalVal);
             document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
-            // Required return per period for every frequency, so the selected annual target is hit exactly
-            const periodsTable = [
-                { label: 'Monthly', n: 12 }, { label: 'Biweekly', n: 26 },
-                { label: 'Weekly', n: 52 }, { label: 'Daily', n: 252, note: 'trading days' }
-            ];
-            const cells = periodsTable.map(f => {
-                const pct = (Math.pow(1 + r / 100, 1 / f.n) - 1) * 100;
-                const active = f.label === freq.label;
-                return `<div class="p-1.5 rounded-lg border ${active ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-700/50'}">
-                    <div class="text-[10px] ${active ? 'text-amber-300' : 'text-slate-400'}">${f.label}</div>
-                    <div class="font-bold ${active ? 'text-amber-400' : 'text-slate-100'} mt-0.5">${pct.toFixed(pct < 1 ? 3 : 2)}%</div>
-                    <div class="text-[10px] text-slate-500">${formatUSD(P * pct / 100)}</div>
-                </div>`;
-            }).join('');
-            const naive = r / freq.periods;
-            const naiveAnnual = (Math.pow(1 + naive / 100, freq.periods) - 1) * 100;
-            document.getElementById('periodNote').innerHTML = `
-                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Required return per period for ${r}% / year</div>
-                <div class="grid grid-cols-4 gap-1.5 text-center">${cells}</div>
-                <div class="text-[10px] text-slate-500 mt-1.5">$ = first-period gain on starting capital (grows as the account compounds). Daily uses 252 trading days.
-                Simply dividing ${r}% by ${freq.periods} (${naive.toFixed(2)}% per period) would compound to ${Math.round(naiveAnnual)}% a year.</div>`;
+            updatePeriodGrid(P, r, freq);
 
             updateRecommendations(r, P);
 
@@ -578,7 +632,9 @@
             });
         }
 
-        [capitalInput, targetInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
+        targetInput.addEventListener('input', () => { annualTarget = parseFloat(targetInput.value); render(); });
+        [capitalInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
+        initPeriodGrid();
         // ===================== SPREAD MANAGER =====================
         const $ = id => document.getElementById(id);
         const num = id => parseFloat($(id).value);
