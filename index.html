@@ -76,8 +76,16 @@
             </div>
 
             <div>
+                <div class="text-sm font-semibold text-slate-300 mb-1.5">Calculation</div>
+                <div class="grid grid-cols-2 gap-1.5 text-xs font-medium">
+                    <button id="modeCompound" onclick="setCalcMode('compound')" class="py-1.5 rounded-lg border">Compound (reinvest gains)</button>
+                    <button id="modeSimple" onclick="setCalcMode('simple')" class="py-1.5 rounded-lg border">Simple (no reinvesting)</button>
+                </div>
+            </div>
+
+            <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
-                    <span class="text-slate-300">Compounding Frequency</span>
+                    <span id="freqTitle" class="text-slate-300">Compounding Frequency</span>
                     <span id="freqVal" class="text-amber-400">Monthly</span>
                 </div>
                 <input type="range" id="freq" min="0" max="2" step="1" value="0">
@@ -284,7 +292,9 @@
             const data = [];
 
             for (let year = 0; year <= t; year++) {
-                const val = P * Math.pow(1 + periodRate, periodsPerYear * year);
+                const val = calcMode === 'simple'
+                    ? P * (1 + (r / 100) * year)   // simple: earns on starting capital only
+                    : P * Math.pow(1 + periodRate, periodsPerYear * year);
                 labels.push(`Y${year}`);
                 data.push(Math.round(val));
             }
@@ -509,8 +519,20 @@
             { label: 'Weekly', n: 52 }, { label: 'Daily', n: 252 }
         ];
         const fmtPct = (x, d) => String(+x.toFixed(d));
-        const perFromAnnual = (a, n) => (Math.pow(1 + a / 100, 1 / n) - 1) * 100;
-        const annualFromPer = (p, n) => (Math.pow(1 + p / 100, n) - 1) * 100;
+        let calcMode = 'compound';
+        const perFromAnnual = (a, n) => calcMode === 'simple' ? a / n : (Math.pow(1 + a / 100, 1 / n) - 1) * 100;
+        const annualFromPer = (p, n) => calcMode === 'simple' ? p * n : (Math.pow(1 + p / 100, n) - 1) * 100;
+        const compoundOf = (p, n) => (Math.pow(1 + p / 100, n) - 1) * 100;
+
+        function setCalcMode(mode) {
+            calcMode = mode;
+            const on = 'py-1.5 rounded-lg border bg-blue-600 text-white border-blue-500 font-semibold';
+            const off = 'py-1.5 rounded-lg border bg-slate-700 text-slate-300 border-slate-600';
+            document.getElementById('modeCompound').className = mode === 'compound' ? on : off;
+            document.getElementById('modeSimple').className = mode === 'simple' ? on : off;
+            document.getElementById('freqTitle').textContent = mode === 'simple' ? 'Payout Frequency' : 'Compounding Frequency';
+            render();
+        }
 
         function setAnnualTarget(a) {
             annualTarget = a;
@@ -570,8 +592,10 @@
             const naive = r / freq.periods;
             const over = r > +targetInput.max ? ` Target is above the slider's ${targetInput.max}% max; the slider is pinned but the exact value is used.` : '';
             document.getElementById('periodFoot').textContent =
-                `Edit any % to set the annual target (${fmtPct(r, 2)}% / yr), or edit the annual % above. $ = first-period gain on starting capital. Daily = 252 trading days. ` +
-                `Dividing ${fmtPct(r, 2)}% by ${freq.periods} (${naive.toFixed(2)}%) would compound to ${Math.round(annualFromPer(naive, freq.periods))}%/yr.` + over;
+                `Edit any % to set the annual target (${fmtPct(r, 2)}% / yr), or edit the annual % above. $ = ${calcMode === 'simple' ? 'gain every period (fixed)' : 'first-period gain on starting capital'}. Daily = 252 trading days. ` +
+                (calcMode === 'simple'
+                    ? `Simple mode: each period earns on starting capital only; gains are taken out, not reinvested. Reinvesting the same ${naive.toFixed(2)}% per period would compound to ${Math.round(compoundOf(naive, freq.periods))}%/yr.`
+                    : `Dividing ${fmtPct(r, 2)}% by ${freq.periods} (${naive.toFixed(2)}%) would compound to ${Math.round(compoundOf(naive, freq.periods))}%/yr.`) + over;
         }
 
         function render() {
@@ -585,7 +609,7 @@
             if (document.activeElement !== tv) tv.value = fmtPct(r, 2);
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
             document.getElementById('freqVal').textContent = freq.label;
-            document.getElementById('projTitle').textContent = `${freq.label} Compounded Projection`;
+            document.getElementById('projTitle').textContent = calcMode === 'simple' ? 'Simple Return Projection' : `${freq.label} Compounded Projection`;
 
             const { labels, data, finalVal } = calculateCompounding(P, r, t, freq.periods);
 
@@ -635,6 +659,7 @@
         targetInput.addEventListener('input', () => { annualTarget = parseFloat(targetInput.value); render(); });
         [capitalInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
         initPeriodGrid();
+        setCalcMode('compound');
         // ===================== SPREAD MANAGER =====================
         const $ = id => document.getElementById(id);
         const num = id => parseFloat($(id).value);
