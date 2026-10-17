@@ -31,6 +31,12 @@
             <p class="text-xs text-slate-400 mt-1">Return &amp; Payout Calculator</p>
         </div>
 
+        <!-- Tabs -->
+        <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-800 rounded-xl border border-slate-700 text-sm font-semibold">
+            <button id="tabAlloc" onclick="showTab('alloc')">Calculator</button>
+            <button id="tabPlan" onclick="showTab('plan')">Target Planner</button>
+        </div>
+
         <div id="viewAlloc" class="space-y-5">
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-5 shadow-lg">
             <!-- 1. Capital -->
@@ -129,6 +135,76 @@
                     <tbody id="periodRows"></tbody>
                 </table>
             </div>
+        </div>
+        </div>
+
+        <!-- ===================== TARGET PLANNER ===================== -->
+        <div id="viewPlan" class="space-y-5 hidden">
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-5 shadow-lg">
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Starting Capital</span>
+                    <span id="pCapVal" class="text-blue-400">$100,000</span>
+                </div>
+                <input type="range" id="pCapital" min="10000" max="1000000" step="5000" value="100000">
+            </div>
+            <div>
+                <div class="flex justify-between items-center text-sm font-semibold">
+                    <span class="text-slate-300">Target End Value</span>
+                    <span class="text-emerald-400 flex items-center">$<input id="pTarget" type="text" inputmode="numeric" value="250,000" class="w-28 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400"></span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Still invested + everything pulled out, at the end.</div>
+            </div>
+            <div>
+                <div class="flex justify-between text-sm font-semibold mb-1">
+                    <span class="text-slate-300">Target Years</span>
+                    <span id="pYearsVal" class="text-purple-400">5 Years</span>
+                </div>
+                <input type="range" id="pYears" min="1" max="10" step="1" value="5">
+            </div>
+            <div class="pt-1 border-t border-slate-700/60">
+                <div class="flex justify-between text-sm font-semibold mt-3 mb-1">
+                    <span class="text-slate-300">Split: pull back</span>
+                    <span class="text-amber-400"><span id="pPullVal">25</span>% of gain · <span id="pKeepVal">75</span>% reinvested</span>
+                </div>
+                <input type="range" id="pPull" min="5" max="95" step="5" value="25">
+                <label class="flex items-center gap-2 mt-3 text-sm font-semibold text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="pGrowOn" class="accent-amber-500 w-4 h-4"> Grow the pull each period
+                </label>
+                <div id="pGrowWrap" class="hidden mt-2 space-y-3 pl-6">
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-slate-400">Increase per period</span>
+                            <span class="text-amber-400">+<span id="pGrowVal">5</span>% of current pull</span>
+                        </div>
+                        <input type="range" id="pGrow" min="0.5" max="20" step="0.5" value="5">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold mb-1">
+                            <span class="text-slate-400">Stop growing at</span>
+                            <span class="text-amber-400"><span id="pCapPullVal">100</span>% pulled</span>
+                        </div>
+                        <input type="range" id="pPullCap" min="30" max="100" step="5" value="100">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Return Needed per Period</div>
+            <div id="pHeadline" class="text-sm text-slate-300 mb-3"></div>
+            <table class="w-full text-center tabular-nums">
+                <thead>
+                    <tr class="text-[11px] text-slate-400">
+                        <th></th>
+                        <th class="font-semibold pb-1.5">Compound<div class="text-[10px] font-normal opacity-75">reinvest all</div></th>
+                        <th class="font-semibold pb-1.5">Simple<div class="text-[10px] font-normal opacity-75">pull out all</div></th>
+                        <th class="font-semibold pb-1.5">Split<div id="pSplitSub" class="text-[10px] font-normal opacity-75"></div></th>
+                    </tr>
+                </thead>
+                <tbody id="planGrid"></tbody>
+            </table>
+            <div class="text-[11px] text-slate-500 mt-3">Small number under each % is the yearly equivalent (for Split, how fast the invested balance grows). Red means above 25% per period. Tap any cell to open it in the Calculator with the full period-by-period breakdown.</div>
         </div>
         </div>
     </div>
@@ -262,6 +338,128 @@
         setCalcMode('compound');
         setPeriod('monthly');
         render();
+
+        // ===================== TABS =====================
+        function showTab(tab) {
+            const on = 'py-2 rounded-lg bg-blue-600 text-white';
+            const off = 'py-2 rounded-lg text-slate-400';
+            document.getElementById('tabAlloc').className = tab === 'alloc' ? on : off;
+            document.getElementById('tabPlan').className = tab === 'plan' ? on : off;
+            document.getElementById('viewAlloc').classList.toggle('hidden', tab !== 'alloc');
+            document.getElementById('viewPlan').classList.toggle('hidden', tab !== 'plan');
+            if (tab === 'plan') renderPlan();
+            window.scrollTo(0, 0);
+        }
+
+        // ===================== TARGET PLANNER =====================
+        // End total (invested + pulled) for a per-period rate r with pull schedule pullAt(i)
+        function simulateTotal(P, r, periods, pullAt) {
+            let bal = P, pulled = 0;
+            for (let i = 1; i <= periods; i++) {
+                const gain = bal * r;
+                const out = gain * pullAt(i);
+                bal += gain - out;
+                pulled += out;
+            }
+            return bal + pulled;
+        }
+
+        // Smallest per-period rate that reaches the target (total grows with r, so bisect)
+        const MAX_RATE = 1; // 100% per period
+        function solveRate(P, target, periods, pullAt) {
+            if (target <= P) return 0;
+            if (simulateTotal(P, MAX_RATE, periods, pullAt) < target) return null;
+            let lo = 0, hi = MAX_RATE;
+            for (let k = 0; k < 60; k++) {
+                const mid = (lo + hi) / 2;
+                if (simulateTotal(P, mid, periods, pullAt) >= target) hi = mid; else lo = mid;
+            }
+            return hi;
+        }
+
+        const pEl = id => document.getElementById(id);
+        const parseMoney = str => parseFloat(String(str).replace(/[^0-9.]/g, ''));
+        let planCells = {};
+
+        function renderPlan() {
+            const P = parseFloat(pEl('pCapital').value);
+            const t = parseInt(pEl('pYears').value);
+            const target = parseMoney(pEl('pTarget').value);
+            const f = parseFloat(pEl('pPull').value) / 100;
+            const growing = pEl('pGrowOn').checked;
+            const g = parseFloat(pEl('pGrow').value) / 100;
+            const cap = Math.max(parseFloat(pEl('pPullCap').value) / 100, f);
+
+            pEl('pCapVal').textContent = formatUSD(P);
+            pEl('pYearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
+            pEl('pPullVal').textContent = pEl('pPull').value;
+            pEl('pKeepVal').textContent = 100 - parseFloat(pEl('pPull').value);
+            pEl('pGrowWrap').classList.toggle('hidden', !growing);
+            pEl('pGrowVal').textContent = pEl('pGrow').value;
+            pEl('pCapPullVal').textContent = pEl('pPullCap').value;
+            pEl('pSplitSub').textContent = growing ? `${Math.round(f * 100)}% +${pEl('pGrow').value}%/period` : `pull ${Math.round(f * 100)}%`;
+
+            if (!isFinite(target) || target <= 0) {
+                pEl('pHeadline').textContent = 'Enter a target end value.';
+                pEl('planGrid').innerHTML = '';
+                return;
+            }
+            const mult = target / P;
+            pEl('pHeadline').innerHTML = target <= P
+                ? `Target is at or below your starting capital, so no return is needed.`
+                : `Turn <b>${formatUSD(P)}</b> into <b class="text-emerald-400">${formatUSD(target)}</b> in ${t} ${t === 1 ? 'year' : 'years'} (${+mult.toFixed(2)}×).`;
+
+            const modes = {
+                compound: () => 0,
+                simple: () => 1,
+                split: i => growing ? Math.min(f * Math.pow(1 + g, i - 1), cap) : f
+            };
+            planCells = {};
+            pEl('planGrid').innerHTML = Object.entries(PERIOD_INFO).map(([pk, info]) => {
+                const periods = info.n * t;
+                const cells = Object.entries(modes).map(([mk, pullAt]) => {
+                    const r = solveRate(P, target, periods, pullAt);
+                    const id = pk + '_' + mk;
+                    planCells[id] = r;
+                    if (r === null) return `<td class="p-1"><div class="py-2 rounded-lg bg-slate-900/70 border border-slate-700/50 text-slate-500 text-xs">&gt;100%</div></td>`;
+                    const pct = r * 100;
+                    const annual = mk === 'simple' ? pct * info.n : (Math.pow(1 + r * (1 - pullAt(1)), info.n) - 1) * 100;
+                    const annualTxt = mk === 'split' ? (growing ? '' : `bal +${+annual.toFixed(1)}%/yr`) : `≈${+annual.toFixed(1)}%/yr`;
+                    const hot = pct > 25 ? 'text-rose-400' : 'text-emerald-400';
+                    return `<td class="p-1"><button onclick="openInCalc('${pk}','${mk}')" class="w-full py-2 rounded-lg bg-slate-900/70 border border-slate-700/50 hover:border-blue-500 active:bg-slate-700">
+                        <div class="text-base font-bold ${hot}">${pct < 10 ? pct.toFixed(2) : pct.toFixed(1)}%</div>
+                        <div class="text-[10px] text-slate-500 h-3">${annualTxt}</div></button></td>`;
+                }).join('');
+                return `<tr><th class="text-left text-xs font-semibold text-slate-300 pr-1">${{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[pk]}</th>${cells}</tr>`;
+            }).join('');
+        }
+
+        // Load a planner cell into the Calculator tab
+        function openInCalc(pk, mk) {
+            const r = planCells[pk + '_' + mk];
+            if (r == null) return;
+            capitalInput.value = pEl('pCapital').value;
+            yearsInput.value = pEl('pYears').value;
+            pullInput.value = pEl('pPull').value;
+            growOn.checked = pEl('pGrowOn').checked;
+            growInput.value = pEl('pGrow').value;
+            capInput.value = pEl('pPullCap').value;
+            ratePct = Math.ceil(r * 10000) / 100; // round up to 0.01% so the target is met
+            rateInput.value = Math.min(ratePct, +rateInput.max);
+            period = pk;
+            setPeriod(pk);
+            setCalcMode(mk);
+            showTab('alloc');
+        }
+
+        ['pCapital', 'pYears', 'pPull', 'pGrow', 'pPullCap'].forEach(id => pEl(id).addEventListener('input', renderPlan));
+        pEl('pGrowOn').addEventListener('change', renderPlan);
+        pEl('pTarget').addEventListener('input', renderPlan);
+        pEl('pTarget').addEventListener('blur', () => {
+            const v = parseMoney(pEl('pTarget').value);
+            if (isFinite(v)) pEl('pTarget').value = Math.round(v).toLocaleString('en-US');
+        });
+        showTab('alloc');
     </script>
 </body>
 </html>
