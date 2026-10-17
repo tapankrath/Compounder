@@ -39,18 +39,8 @@
         </div>
 
         <div id="viewAlloc" class="space-y-5">
-        <!-- Market Regime / Trend Selector -->
-        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80 shadow-md">
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Market Environment Trend</label>
-            <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
-                <button id="btnBull" onclick="setTrend('BULLISH')" class="py-1.5 px-2 rounded-lg bg-blue-600 text-white font-semibold text-center border border-blue-500">Bullish Tech</button>
-                <button id="btnVol" onclick="setTrend('HIGH_IV')" class="py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600">High IV / Range</button>
-                <button id="btnDef" onclick="setTrend('DEFENSIVE')" class="py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600">Defensive</button>
-            </div>
-        </div>
-
-        <!-- Inputs / Controls -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4 shadow-lg">
+        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-5 shadow-lg">
+            <!-- 1. Capital -->
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Capital to Allocate</span>
@@ -59,15 +49,22 @@
                 <input type="range" id="capital" min="10000" max="1000000" step="5000" value="100000">
             </div>
 
+            <!-- 2. Return per period -->
             <div>
-                <div class="flex justify-between text-sm font-semibold mb-1">
-                    <span class="text-slate-300">Annual Return Target</span>
-                    <span class="text-emerald-400 flex items-center"><input id="targetVal" type="number" inputmode="decimal" step="0.1" min="0" class="w-20 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
+                <div class="text-sm font-semibold text-slate-300 mb-1.5">Return Period</div>
+                <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
+                    <button id="per_weekly" onclick="setPeriod('weekly')" class="py-1.5 rounded-lg border">Weekly</button>
+                    <button id="per_biweekly" onclick="setPeriod('biweekly')" class="py-1.5 rounded-lg border">Biweekly</button>
+                    <button id="per_monthly" onclick="setPeriod('monthly')" class="py-1.5 rounded-lg border">Monthly</button>
                 </div>
-                <input type="range" id="target" min="5" max="250" step="1" value="18">
-                <div id="periodNote" class="text-xs text-slate-400 mt-2 p-2 bg-slate-900/60 rounded-lg border border-slate-700/50"></div>
+                <div class="flex justify-between text-sm font-semibold mt-3 mb-1">
+                    <span id="rateLabel" class="text-slate-300">Return per Month</span>
+                    <span class="text-emerald-400 flex items-center"><input id="rateVal" type="number" inputmode="decimal" step="0.05" min="0" class="w-16 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
+                </div>
+                <input type="range" id="rate" min="0" max="5" step="0.05" value="1">
             </div>
 
+            <!-- 3. Years -->
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Target Time Horizon</span>
@@ -75,73 +72,16 @@
                 </div>
                 <input type="range" id="years" min="1" max="10" step="1" value="5">
             </div>
-
-            <div>
-                <div class="text-sm font-semibold text-slate-300 mb-1.5">Calculation</div>
-                <div class="grid grid-cols-2 gap-1.5 text-xs font-medium">
-                    <button id="modeCompound" onclick="setCalcMode('compound')" class="py-1.5 rounded-lg border">Compound (reinvest gains)</button>
-                    <button id="modeSimple" onclick="setCalcMode('simple')" class="py-1.5 rounded-lg border">Simple (no reinvesting)</button>
-                </div>
-            </div>
-
-            <div>
-                <div class="flex justify-between text-sm font-semibold mb-1">
-                    <span id="freqTitle" class="text-slate-300">Compounding Frequency</span>
-                    <span id="freqVal" class="text-amber-400">Monthly</span>
-                </div>
-                <input type="range" id="freq" min="0" max="2" step="1" value="0">
-                <div class="flex justify-between text-[10px] text-slate-500 mt-0.5 px-0.5">
-                    <span>Monthly</span><span>Biweekly</span><span>Weekly</span>
-                </div>
-            </div>
         </div>
 
-        <!-- Monthly Compounded Projection -->
+        <!-- Result -->
         <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-            <h2 id="projTitle" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Monthly Compounded Projection</h2>
-            <div class="text-2xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
-            <div class="text-xs text-slate-400 mb-4">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
-            <div class="relative h-44 w-full">
-                <canvas id="growthChart"></canvas>
-            </div>
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Projected Value</div>
+            <div class="text-3xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
+            <div class="text-sm text-slate-400 mt-1">Total Gain: <span id="gainVal" class="font-semibold text-slate-200">$0</span></div>
+            <div id="projNote" class="text-xs text-slate-500 mt-2"></div>
         </div>
-
-        <!-- Recommended Breakdown -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3 shadow-lg">
-            <div class="flex items-center justify-between">
-                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Strategy Profile</h2>
-                <span id="tierBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">Moderate</span>
-            </div>
-            
-            <div class="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-900/60 rounded-lg border border-slate-700/50">
-                <div class="p-1">
-                    <div class="text-slate-400">ETFs</div>
-                    <div id="allocEtf" class="font-bold text-slate-100 mt-0.5">50%</div>
-                </div>
-                <div class="p-1 border-x border-slate-700/50">
-                    <div class="text-slate-400">Stocks</div>
-                    <div id="allocStock" class="font-bold text-slate-100 mt-0.5">30%</div>
-                </div>
-                <div class="p-1">
-                    <div class="text-slate-400">Options</div>
-                    <div id="allocOpt" class="font-bold text-slate-100 mt-0.5">20%</div>
-                </div>
-            </div>
-
-            <!-- Specific Trade Recommendations -->
-            <div class="space-y-3 pt-1" id="tradeDetails"></div>
         </div>
-
-        <!-- Stock Universe -->
-        <details class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
-            <summary class="p-4 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-                <span>Stock Universe (<span id="universeCount">50</span>)</span>
-                <span class="normal-case font-medium text-slate-500">Mkt caps as of <span id="universeDate"></span></span>
-            </summary>
-            <div id="universeList" class="px-4 pb-3 text-xs"></div>
-        </details>
-        </div>
-
         <!-- ===================== SPREAD MANAGER ===================== -->
         <div id="viewSpread" class="space-y-5 hidden">
             <datalist id="tickerList"></datalist>
@@ -250,416 +190,60 @@
     </div>
 
     <script>
+        // ===================== ALLOCATOR =====================
         const capitalInput = document.getElementById('capital');
-        const targetInput = document.getElementById('target');
+        const rateInput = document.getElementById('rate');
+        const rateVal = document.getElementById('rateVal');
         const yearsInput = document.getElementById('years');
-        const freqInput = document.getElementById('freq');
-        const FREQUENCIES = [
-            { label: 'Monthly', periods: 12 },
-            { label: 'Biweekly', periods: 26 },
-            { label: 'Weekly', periods: 52 }
-        ];
-        let currentTrend = 'BULLISH';
-        let chart;
-
-        function setTrend(trend) {
-            currentTrend = trend;
-            const btnBull = document.getElementById('btnBull');
-            const btnVol = document.getElementById('btnVol');
-            const btnDef = document.getElementById('btnDef');
-
-            [btnBull, btnVol, btnDef].forEach(b => b.className = "py-1.5 px-2 rounded-lg bg-slate-700 text-slate-300 text-center border border-slate-600");
-
-            if (trend === 'BULLISH') {
-                btnBull.className = "py-1.5 px-2 rounded-lg bg-blue-600 text-white font-semibold text-center border border-blue-500";
-            } else if (trend === 'HIGH_IV') {
-                btnVol.className = "py-1.5 px-2 rounded-lg bg-purple-600 text-white font-semibold text-center border border-purple-500";
-            } else if (trend === 'DEFENSIVE') {
-                btnDef.className = "py-1.5 px-2 rounded-lg bg-emerald-600 text-white font-semibold text-center border border-emerald-500";
-            }
-
-            render();
-        }
+        const PERIOD_INFO = {
+            weekly:   { label: 'Week',   n: 52 },
+            biweekly: { label: 'Two Weeks', n: 26 },
+            monthly:  { label: 'Month',  n: 12 }
+        };
+        let period = 'monthly';
+        let ratePct = parseFloat(rateInput.value);
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
         }
 
-        function calculateCompounding(P, r, t, periodsPerYear) {
-            // Target is an effective annual return: find the per-period rate that compounds to exactly r% per year
-            const periodRate = Math.pow(1 + r / 100, 1 / periodsPerYear) - 1;
-            const labels = [];
-            const data = [];
-
-            for (let year = 0; year <= t; year++) {
-                const val = calcMode === 'simple'
-                    ? P * (1 + (r / 100) * year)   // simple: earns on starting capital only
-                    : P * Math.pow(1 + periodRate, periodsPerYear * year);
-                labels.push(`Y${year}`);
-                data.push(Math.round(val));
-            }
-            return { labels, data, finalVal: data[data.length - 1] };
-        }
-
-        function formatCompact(val) {
-            const abs = Math.abs(val);
-            if (abs >= 1e12) return '$' + +(val / 1e12).toFixed(1) + 'T';
-            if (abs >= 1e9) return '$' + +(val / 1e9).toFixed(1) + 'B';
-            if (abs >= 1e6) return '$' + +(val / 1e6).toFixed(1) + 'M';
-            if (abs >= 1e3) return '$' + +(val / 1e3).toFixed(0) + 'k';
-            return '$' + val;
-        }
-
-        // Top 50 US companies by market cap (all $100B+). Snapshot as of Sep 25, 2026 — update manually.
-        // Tags drive the recommendation pools: growth, quality, highbeta, semis, defensive, dividend, value, energy, recentIPO
-        const UNIVERSE_DATE = 'Sep 25, 2026';
-        const UNIVERSE = [
-            { t: 'NVDA', name: 'Nvidia', cap: 5000, tags: ['growth', 'highbeta', 'semis'] },
-            { t: 'AAPL', name: 'Apple', cap: 4900, tags: ['growth', 'quality'] },
-            { t: 'GOOGL', name: 'Alphabet', cap: 3900, tags: ['growth', 'quality'] },
-            { t: 'MSFT', name: 'Microsoft', cap: 2800, tags: ['growth', 'quality'] },
-            { t: 'AMZN', name: 'Amazon', cap: 2500, tags: ['growth'] },
-            { t: 'AVGO', name: 'Broadcom', cap: 1800, tags: ['growth', 'highbeta', 'semis'] },
-            { t: 'SPCX', name: 'SpaceX', cap: 1500, tags: ['highbeta', 'recentIPO'] },
-            { t: 'META', name: 'Meta Platforms', cap: 1500, tags: ['growth'] },
-            { t: 'TSLA', name: 'Tesla', cap: 1200, tags: ['highbeta'] },
-            { t: 'LLY', name: 'Eli Lilly', cap: 1100, tags: ['growth'] },
-            { t: 'MU', name: 'Micron', cap: 1000, tags: ['highbeta', 'semis'] },
-            { t: 'JPM', name: 'JPMorgan Chase', cap: 939, tags: ['value', 'dividend'] },
-            { t: 'WMT', name: 'Walmart', cap: 871, tags: ['defensive'] },
-            { t: 'AMD', name: 'AMD', cap: 851, tags: ['highbeta', 'semis'] },
-            { t: 'V', name: 'Visa', cap: 677, tags: ['quality'] },
-            { t: 'XOM', name: 'Exxon Mobil', cap: 651, tags: ['energy', 'value', 'dividend'] },
-            { t: 'JNJ', name: 'Johnson & Johnson', cap: 635, tags: ['defensive', 'dividend'] },
-            { t: 'MA', name: 'Mastercard', cap: 477, tags: ['quality'] },
-            { t: 'INTC', name: 'Intel', cap: 466, tags: ['highbeta', 'semis'] },
-            { t: 'ABBV', name: 'AbbVie', cap: 458, tags: ['defensive', 'dividend'] },
-            { t: 'CSCO', name: 'Cisco', cap: 450, tags: ['value', 'dividend'] },
-            { t: 'BAC', name: 'Bank of America', cap: 436, tags: ['value', 'dividend'] },
-            { t: 'AMAT', name: 'Applied Materials', cap: 426, tags: ['highbeta', 'semis'] },
-            { t: 'COST', name: 'Costco', cap: 415, tags: ['defensive', 'quality'] },
-            { t: 'CAT', name: 'Caterpillar', cap: 409, tags: ['value'] },
-            { t: 'CVX', name: 'Chevron', cap: 388, tags: ['energy', 'value', 'dividend'] },
-            { t: 'UNH', name: 'UnitedHealth', cap: 382, tags: ['defensive'] },
-            { t: 'LRCX', name: 'Lam Research', cap: 382, tags: ['highbeta', 'semis'] },
-            { t: 'GE', name: 'GE Aerospace', cap: 367, tags: ['growth'] },
-            { t: 'KO', name: 'Coca-Cola', cap: 354, tags: ['defensive', 'dividend'] },
-            { t: 'PG', name: 'Procter & Gamble', cap: 343, tags: ['defensive', 'dividend'] },
-            { t: 'MS', name: 'Morgan Stanley', cap: 337, tags: ['value'] },
-            { t: 'HD', name: 'Home Depot', cap: 332, tags: ['dividend'] },
-            { t: 'ORCL', name: 'Oracle', cap: 331, tags: ['growth', 'highbeta'] },
-            { t: 'MRK', name: 'Merck', cap: 324, tags: ['defensive', 'dividend'] },
-            { t: 'GS', name: 'Goldman Sachs', cap: 313, tags: ['value'] },
-            { t: 'PM', name: 'Philip Morris', cap: 301, tags: ['defensive', 'dividend'] },
-            { t: 'PLTR', name: 'Palantir', cap: 295, tags: ['highbeta'] },
-            { t: 'NFLX', name: 'Netflix', cap: 292, tags: ['growth'] },
-            { t: 'RTX', name: 'RTX', cap: 287, tags: ['defensive'] },
-            { t: 'DELL', name: 'Dell', cap: 283, tags: ['highbeta'] },
-            { t: 'KLAC', name: 'KLA', cap: 275, tags: ['semis', 'quality'] },
-            { t: 'GEV', name: 'GE Vernova', cap: 270, tags: ['highbeta'] },
-            { t: 'PANW', name: 'Palo Alto Networks', cap: 264, tags: ['growth'] },
-            { t: 'WFC', name: 'Wells Fargo', cap: 261, tags: ['value', 'dividend'] },
-            { t: 'TXN', name: 'Texas Instruments', cap: 255, tags: ['semis', 'dividend'] },
-            { t: 'LIN', name: 'Linde', cap: 237, tags: ['quality'] },
-            { t: 'AXP', name: 'American Express', cap: 223, tags: ['value'] },
-            { t: 'ANET', name: 'Arista Networks', cap: 219, tags: ['highbeta'] },
-            { t: 'SNDK', name: 'Sandisk', cap: 213, tags: ['highbeta', 'semis'] }
-        ];
-
-        // Top-n names (by market cap) carrying any of the given tags. Recent IPOs are skipped for options.
-        function pick(tags, n, { forOptions = false, exclude = [] } = {}) {
-            return UNIVERSE
-                .filter(s => s.tags.some(tag => tags.includes(tag)))
-                .filter(s => !(forOptions && s.tags.includes('recentIPO')))
-                .filter(s => !exclude.includes(s.t))
-                .sort((a, b) => b.cap - a.cap)
-                .slice(0, n)
-                .map(s => s.t);
-        }
-
-        function formatCap(b) {
-            return b >= 1000 ? `$${+(b / 1000).toFixed(2)}T` : `$${b}B`;
-        }
-
-        function renderUniverse() {
-            document.getElementById('universeDate').textContent = UNIVERSE_DATE;
-            document.getElementById('universeCount').textContent = UNIVERSE.length;
-            document.getElementById('universeList').innerHTML = UNIVERSE.map((s, i) => `
-                <div class="flex items-center justify-between py-1.5 border-b border-slate-700/40 last:border-0">
-                    <div class="min-w-0">
-                        <span class="text-slate-500 w-6 inline-block">${i + 1}</span>
-                        <span class="font-bold text-slate-100">${s.t}</span>
-                        <span class="text-slate-400 ml-1">${s.name}</span>
-                    </div>
-                    <span class="text-slate-300 font-semibold shrink-0 ml-2">${formatCap(s.cap)}</span>
-                </div>
-            `).join('');
-        }
-
-
-        function updateRecommendations(targetPct, totalCap) {
-            const container = document.getElementById('tradeDetails');
-            const tierBadge = document.getElementById('tierBadge');
-            let etfPct, stockPct, optPct, tierText, badgeClass;
-            let trades = [];
-            const N = 5; // names per stock bucket
-            const stockCard = (category, tickers, pct, sub) => ({
-                category, tickers, sub,
-                detail: `${formatUSD(totalCap * pct)} · ~${formatUSD(totalCap * pct / tickers.length)} each`
-            });
-
-            if (targetPct < 12) {
-                tierText = "Conservative";
-                badgeClass = "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-                etfPct = 70; stockPct = 20; optPct = 10;
-
-                let etfs = ['SPY', 'VTI'];
-                let stocks = pick(['quality'], N);
-                let stockSub = "Wide-moat quality megacaps from the top-50 universe.";
-                if (currentTrend === 'HIGH_IV') {
-                    stocks = pick(['dividend'], N);
-                    stockSub = "Dividend payers — richer call premium to sell while IV is elevated.";
-                } else if (currentTrend === 'DEFENSIVE') {
-                    etfs = ['XLP', 'XLU', 'SPY'];
-                    stocks = pick(['defensive'], N);
-                    stockSub = "Staples, healthcare & defense — low-beta names from the top-50 universe.";
-                }
-
-                trades = [
-                    { category: "ETFs (Core Anchor)", tickers: etfs, detail: formatUSD(totalCap * 0.70), sub: "Core broad market baseline allocations." },
-                    stockCard("Blue-Chip Stocks", stocks, 0.20, stockSub),
-                    { category: "Options Strategy", tickers: [etfs[0], ...stocks.slice(0, 3)], detail: "30–45 DTE | Covered Call (0.20 Delta)", sub: "Sell OTM covered calls against core holdings for steady monthly yield." }
-                ];
-            } else if (targetPct <= 20) {
-                tierText = "Growth & Income";
-                badgeClass = "bg-blue-500/20 text-blue-400 border-blue-500/30";
-                etfPct = 50; stockPct = 30; optPct = 20;
-
-                let stocks = pick(['growth'], N);
-                let stockSub = "Largest growth leaders driving core total return.";
-                let optTickers = ['QQQ', ...pick(['growth'], 3, { forOptions: true })];
-                let optDetail = "30–45 DTE | Cash-Secured Put (0.25 Delta)";
-                let optSub = "Sell CSPs 3-5% OTM on high-volume momentum growth assets.";
-
-                if (currentTrend === 'HIGH_IV') {
-                    stocks = pick(['quality'], N);
-                    stockSub = "Hold steadier quality names; let the spreads harvest volatility.";
-                    optTickers = ['QQQ', ...pick(['highbeta'], 4, { forOptions: true })];
-                    optDetail = "30–45 DTE | Credit Spread / Iron Condor";
-                    optSub = "Sell defined-risk spreads to capture elevated implied volatility.";
-                } else if (currentTrend === 'DEFENSIVE') {
-                    stocks = pick(['value', 'dividend'], N);
-                    stockSub = "Value & dividend megacaps — financials, energy, healthcare.";
-                    optTickers = ['SPY', 'XLP', ...pick(['defensive'], 3, { forOptions: true })];
-                    optDetail = "45–60 DTE | Cash-Secured Put (0.15 Delta)";
-                    optSub = "Sell conservative low-delta puts on value & defensive names.";
-                }
-
-                trades = [
-                    { category: "Index ETFs", tickers: currentTrend === 'DEFENSIVE' ? ['SPY', 'SCHD', 'XLV'] : ['QQQ', 'SPY', 'SCHG'], detail: formatUSD(totalCap * 0.50), sub: "Index foundation." },
-                    stockCard("Equities", stocks, 0.30, stockSub),
-                    { category: "Options Strategy", tickers: optTickers, detail: optDetail, sub: optSub }
-                ];
-            } else {
-                tierText = "Aggressive Yield";
-                badgeClass = "bg-purple-500/20 text-purple-400 border-purple-500/30";
-                etfPct = 30; stockPct = 30; optPct = 40;
-
-                let etfs = ['QQQ', 'SMH', 'SOXX'];
-                let stocks = pick(['highbeta'], N);
-                let stockSub = "Highest-beta names in the top-50 universe.";
-                let optTickers = pick(['growth'], 4, { forOptions: true });
-                let optDetail = "Long: 300+ DTE (0.80 Delta)\nShort: 30 DTE (0.30 Delta)";
-                let optSub = "Poor Man's Covered Call (PMCC). Buy deep ITM LEAPS, sell short calls.";
-
-                if (currentTrend === 'HIGH_IV') {
-                    optTickers = ['SMH', ...pick(['semis'], 4, { forOptions: true, exclude: ['NVDA', 'AVGO'] })];
-                    optDetail = "30–45 DTE | Bull Put / Call Diagonal";
-                    optSub = "Capitalize on high IV premium with leveraged spreads.";
-                } else if (currentTrend === 'DEFENSIVE') {
-                    etfs = ['QQQ', 'SPY', 'XLV'];
-                    stocks = pick(['quality'], N);
-                    stockSub = "Keep growth exposure but tilt to steadier quality megacaps.";
-                    optTickers = pick(['quality'], 4, { forOptions: true });
-                    optDetail = "Long: 300+ DTE (0.80 Delta)\nShort: 30–45 DTE (0.20 Delta)";
-                    optSub = "PMCC on lower-beta quality names with further-OTM short calls for more cushion.";
-                }
-
-                trades = [
-                    { category: "Growth ETFs", tickers: etfs, detail: formatUSD(totalCap * 0.30), sub: currentTrend === 'DEFENSIVE' ? "Broad growth with a healthcare hedge." : "Semiconductor and tech momentum sector concentration." },
-                    stockCard("High-Conviction Equities", stocks, 0.30, stockSub),
-                    { category: "Options Strategy", tickers: optTickers, detail: optDetail, sub: optSub }
-                ];
-            }
-
-            tierBadge.textContent = tierText;
-            tierBadge.className = `px-2.5 py-0.5 rounded-full text-xs font-bold border ${badgeClass}`;
-            document.getElementById('allocEtf').textContent = `${etfPct}%`;
-            document.getElementById('allocStock').textContent = `${stockPct}%`;
-            document.getElementById('allocOpt').textContent = `${optPct}%`;
-
-            container.innerHTML = trades.map(t => `
-                <div class="p-3 bg-slate-900/80 rounded-lg border border-slate-700/60">
-                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">${t.category}</span>
-                    <div class="flex flex-wrap gap-1 mt-1.5">
-                        ${t.tickers.map(x => `<span class="px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/25 text-xs font-bold text-blue-400">${x}</span>`).join('')}
-                    </div>
-                    <div class="text-sm font-bold text-slate-100 mt-1.5 whitespace-pre-line">${t.detail}</div>
-                    <div class="text-xs text-slate-400 mt-1">${t.sub}</div>
-                </div>
-            `).join('');
-        }
-
-
-
-        // ===== Two-way annual ⇄ per-period target =====
-        let annualTarget = parseFloat(targetInput.value);
-        const PERIODS = [
-            { label: 'Monthly', n: 12 }, { label: 'Biweekly', n: 26 },
-            { label: 'Weekly', n: 52 }, { label: 'Daily', n: 252 }
-        ];
-        const fmtPct = (x, d) => String(+x.toFixed(d));
-        let calcMode = 'compound';
-        const perFromAnnual = (a, n) => calcMode === 'simple' ? a / n : (Math.pow(1 + a / 100, 1 / n) - 1) * 100;
-        const annualFromPer = (p, n) => calcMode === 'simple' ? p * n : (Math.pow(1 + p / 100, n) - 1) * 100;
-        const compoundOf = (p, n) => (Math.pow(1 + p / 100, n) - 1) * 100;
-
-        function setCalcMode(mode) {
-            calcMode = mode;
+        function setPeriod(p) {
+            period = p;
             const on = 'py-1.5 rounded-lg border bg-blue-600 text-white border-blue-500 font-semibold';
             const off = 'py-1.5 rounded-lg border bg-slate-700 text-slate-300 border-slate-600';
-            document.getElementById('modeCompound').className = mode === 'compound' ? on : off;
-            document.getElementById('modeSimple').className = mode === 'simple' ? on : off;
-            document.getElementById('freqTitle').textContent = mode === 'simple' ? 'Payout Frequency' : 'Compounding Frequency';
+            Object.keys(PERIOD_INFO).forEach(k => document.getElementById('per_' + k).className = k === p ? on : off);
             render();
-        }
-
-        function setAnnualTarget(a) {
-            annualTarget = a;
-            targetInput.value = Math.min(Math.max(Math.round(a), +targetInput.min), +targetInput.max);
-        }
-
-        function initPeriodGrid() {
-            document.getElementById('periodNote').innerHTML = `
-                <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Required return per period <span class="normal-case font-medium text-slate-500">· tap a % to edit</span></div>
-                <div class="grid grid-cols-4 gap-1.5 text-center">
-                    ${PERIODS.map(f => `
-                        <label id="cell_${f.label}" class="block p-1.5 rounded-lg border border-slate-700/50 cursor-text">
-                            <div id="lbl_${f.label}" class="text-[10px] text-slate-400">${f.label}</div>
-                            <div class="flex items-center justify-center mt-0.5">
-                                <input id="per_${f.label}" type="number" inputmode="decimal" step="0.01"
-                                    class="w-full min-w-0 bg-transparent text-center font-bold text-slate-100 focus:outline-none border-b border-dashed border-slate-600 focus:border-amber-400">
-                                <span class="font-bold text-slate-400 text-xs">%</span>
-                            </div>
-                            <div id="usd_${f.label}" class="text-[10px] text-slate-500 mt-0.5"></div>
-                        </label>`).join('')}
-                </div>
-                <div id="periodFoot" class="text-[10px] text-slate-500 mt-1.5"></div>`;
-
-            PERIODS.forEach(f => {
-                const el = document.getElementById(`per_${f.label}`);
-                el.addEventListener('input', () => {
-                    const p = parseFloat(el.value);
-                    if (!isFinite(p) || p <= -100) return;
-                    setAnnualTarget(annualFromPer(p, f.n));
-                    render();
-                });
-                el.addEventListener('blur', render);
-            });
-
-            const tv = document.getElementById('targetVal');
-            tv.addEventListener('input', () => {
-                const a = parseFloat(tv.value);
-                if (!isFinite(a) || a <= -100) return;
-                setAnnualTarget(a);
-                render();
-            });
-            tv.addEventListener('blur', render);
-        }
-
-        function updatePeriodGrid(P, r, freq) {
-            PERIODS.forEach(f => {
-                const pct = perFromAnnual(r, f.n);
-                const active = f.label === freq.label;
-                const input = document.getElementById(`per_${f.label}`);
-                if (document.activeElement !== input) input.value = fmtPct(pct, pct < 1 ? 3 : 2);
-                input.classList.toggle('text-amber-400', active);
-                input.classList.toggle('text-slate-100', !active);
-                document.getElementById(`cell_${f.label}`).className = `block p-1.5 rounded-lg border cursor-text ${active ? 'border-amber-500/60 bg-amber-500/10' : 'border-slate-700/50'}`;
-                document.getElementById(`lbl_${f.label}`).className = `text-[10px] ${active ? 'text-amber-300' : 'text-slate-400'}`;
-                document.getElementById(`usd_${f.label}`).textContent = formatUSD(P * pct / 100);
-            });
-            const naive = r / freq.periods;
-            const over = r > +targetInput.max ? ` Target is above the slider's ${targetInput.max}% max; the slider is pinned but the exact value is used.` : '';
-            document.getElementById('periodFoot').textContent =
-                `Edit any % to set the annual target (${fmtPct(r, 2)}% / yr), or edit the annual % above. $ = ${calcMode === 'simple' ? 'gain every period (fixed)' : 'first-period gain on starting capital'}. Daily = 252 trading days. ` +
-                (calcMode === 'simple'
-                    ? `Simple mode: each period earns on starting capital only; gains are taken out, not reinvested. Reinvesting the same ${naive.toFixed(2)}% per period would compound to ${Math.round(compoundOf(naive, freq.periods))}%/yr.`
-                    : `Dividing ${fmtPct(r, 2)}% by ${freq.periods} (${naive.toFixed(2)}%) would compound to ${Math.round(compoundOf(naive, freq.periods))}%/yr.`) + over;
         }
 
         function render() {
             const P = parseFloat(capitalInput.value);
-            const r = annualTarget;
             const t = parseInt(yearsInput.value);
-            const freq = FREQUENCIES[parseInt(freqInput.value)];
+            const info = PERIOD_INFO[period];
+            const periods = info.n * t;
+            const finalVal = P * Math.pow(1 + ratePct / 100, periods);
 
             document.getElementById('capVal').textContent = formatUSD(P);
-            const tv = document.getElementById('targetVal');
-            if (document.activeElement !== tv) tv.value = fmtPct(r, 2);
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
-            document.getElementById('freqVal').textContent = freq.label;
-            document.getElementById('projTitle').textContent = calcMode === 'simple' ? 'Simple Return Projection' : `${freq.label} Compounded Projection`;
-
-            const { labels, data, finalVal } = calculateCompounding(P, r, t, freq.periods);
-
+            document.getElementById('rateLabel').textContent = `Return per ${info.label}`;
+            if (document.activeElement !== rateVal) rateVal.value = String(+ratePct.toFixed(2));
             document.getElementById('projectedVal').textContent = formatUSD(finalVal);
             document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
-            updatePeriodGrid(P, r, freq);
-
-            updateRecommendations(r, P);
-
-            if (chart) chart.destroy();
-
-            const ctx = document.getElementById('growthChart').getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Portfolio Value',
-                        data: data,
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 3,
-                        pointBackgroundColor: '#10b981'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-                        y: { 
-                            grid: { color: 'rgba(51, 65, 85, 0.5)' }, 
-                            ticks: { 
-                                color: '#94a3b8', 
-                                font: { size: 10 },
-                                callback: val => formatCompact(val)
-                            } 
-                        }
-                    }
-                }
-            });
+            const annual = (Math.pow(1 + ratePct / 100, info.n) - 1) * 100;
+            document.getElementById('projNote').textContent =
+                `${+ratePct.toFixed(2)}% compounded over ${periods} periods (≈ ${+annual.toFixed(1)}% / yr).`;
         }
 
-        targetInput.addEventListener('input', () => { annualTarget = parseFloat(targetInput.value); render(); });
-        [capitalInput, yearsInput, freqInput].forEach(el => el.addEventListener('input', render));
-        initPeriodGrid();
-        setCalcMode('compound');
+        rateInput.addEventListener('input', () => { ratePct = parseFloat(rateInput.value); render(); });
+        rateVal.addEventListener('input', () => {
+            const v = parseFloat(rateVal.value);
+            if (!isFinite(v) || v <= -100) return;
+            ratePct = v;
+            rateInput.value = Math.min(Math.max(v, +rateInput.min), +rateInput.max);
+            render();
+        });
+        rateVal.addEventListener('blur', render);
+        [capitalInput, yearsInput].forEach(el => el.addEventListener('input', render));
+        setPeriod('monthly');
         // ===================== SPREAD MANAGER =====================
         const $ = id => document.getElementById(id);
         const num = id => parseFloat($(id).value);
@@ -1157,7 +741,7 @@
 
         // ---------- Wiring ----------
         (function initSpread() {
-            $('tickerList').innerHTML = ['SPY', 'QQQ', 'IWM', 'SMH', 'XLE', 'XLP', 'XLU', ...UNIVERSE.map(s => s.t)].map(t => `<option value="${t}">`).join('');
+            $('tickerList').innerHTML = ['SPY', 'QQQ', 'IWM', 'SMH', 'XLE', 'XLP', 'XLU', 'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO', 'AMD'].map(t => `<option value="${t}">`).join('');
             loadRules();
             setDeltaMode('short');
             ['sTicker', 'sPrice', 'sIv', 'sDte', 'sWidth', 'sStep', 'sContracts', 'sRate', 'sDelta'].forEach(id => $(id).addEventListener('input', () => { computeSetup(); if (position) renderMonitor(); }));
@@ -1176,7 +760,6 @@
             if (position) fillMonitor();
         })();
 
-        renderUniverse();
         render();
     </script>
 </body>
