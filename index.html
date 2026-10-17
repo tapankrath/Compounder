@@ -71,6 +71,27 @@
                         <span class="text-amber-400"><span id="pullVal">25</span>% of gain · <span id="keepVal">75</span>% reinvested</span>
                     </div>
                     <input type="range" id="pull" min="5" max="95" step="5" value="25">
+
+                    <label class="flex items-center gap-2 mt-3 text-sm font-semibold text-slate-300 cursor-pointer">
+                        <input type="checkbox" id="growOn" class="accent-amber-500 w-4 h-4"> Grow the pull each period
+                    </label>
+                    <div id="growWrap" class="hidden mt-2 space-y-3 pl-6">
+                        <div>
+                            <div class="flex justify-between text-xs font-semibold mb-1">
+                                <span class="text-slate-400">Increase per period</span>
+                                <span class="text-amber-400">+<span id="growVal">5</span>% of current pull</span>
+                            </div>
+                            <input type="range" id="grow" min="0.5" max="20" step="0.5" value="5">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-semibold mb-1">
+                                <span class="text-slate-400">Stop growing at</span>
+                                <span class="text-amber-400"><span id="capVal2">100</span>% pulled</span>
+                            </div>
+                            <input type="range" id="pullCap" min="30" max="100" step="5" value="100">
+                        </div>
+                        <div id="growPreview" class="text-[11px] text-slate-500"></div>
+                    </div>
                 </div>
             </div>
 
@@ -103,7 +124,7 @@
             <div class="max-h-96 overflow-y-auto px-2 pb-2">
                 <table class="w-full text-[11px] tabular-nums">
                     <thead class="sticky top-0 bg-slate-800 text-slate-400">
-                        <tr><th class="text-left font-semibold py-1.5 pl-2">#</th><th class="text-right font-semibold">Gain</th><th class="text-right font-semibold">Pulled</th><th class="text-right font-semibold">Reinvested</th><th class="text-right font-semibold pr-2">Balance</th></tr>
+                        <tr><th class="text-left font-semibold py-1.5 pl-2">#</th><th class="text-right font-semibold">Gain</th><th class="text-right font-semibold">Pull %</th><th class="text-right font-semibold">Pulled</th><th class="text-right font-semibold">Reinvested</th><th class="text-right font-semibold pr-2">Balance</th></tr>
                     </thead>
                     <tbody id="periodRows"></tbody>
                 </table>
@@ -175,19 +196,36 @@
             document.getElementById('keepVal').textContent = 100 - parseFloat(pullInput.value);
             if (document.activeElement !== rateVal) rateVal.value = String(+ratePct.toFixed(2));
 
-            // Walk period by period: gain on current balance, pull back f of it, reinvest the rest
+            // Growing pull (split mode only): pull% rises by g% of itself each period, up to the cap
+            const growing = calcMode === 'split' && growOn.checked;
+            const g = parseFloat(growInput.value) / 100;
+            const cap = parseFloat(capInput.value) / 100;
+            document.getElementById('growWrap').classList.toggle('hidden', !growing);
+            document.getElementById('growVal').textContent = growInput.value;
+            document.getElementById('capVal2').textContent = capInput.value;
+            const pullAt = i => growing ? Math.min(f * Math.pow(1 + g, i - 1), Math.max(cap, f)) : f;
+            if (growing) {
+                const fmt = x => +(x * 100).toFixed(1) + '%';
+                const capHit = f >= cap ? 1 : Math.ceil(Math.log(cap / f) / Math.log(1 + g)) + 1;
+                document.getElementById('growPreview').textContent =
+                    `${fmt(pullAt(1))} → ${fmt(pullAt(2))} → ${fmt(pullAt(3))} → ${fmt(pullAt(4))} … reaches ${fmt(Math.max(cap, f))} at ${info.short}${capHit}` +
+                    (capHit > periods ? ' (beyond your horizon)' : '');
+            }
+
+            // Walk period by period: gain on current balance, pull back part of it, reinvest the rest
             let bal = P, pulled = 0;
             const rows = [];
             for (let i = 1; i <= periods; i++) {
                 const gain = bal * r;
-                const out = gain * f;
+                const fi = pullAt(i);
+                const out = gain * fi;
                 const keep = gain - out;
                 bal += keep;
                 pulled += out;
-                rows.push(`<tr class="border-b border-slate-700/40"><td class="py-1 pl-2 text-slate-500">${info.short}${i}</td><td class="text-right text-emerald-400">${formatUSD(gain)}</td><td class="text-right text-amber-400">${formatUSD(out)}</td><td class="text-right text-slate-300">${formatUSD(keep)}</td><td class="text-right pr-2 font-semibold text-slate-100">${formatUSD(bal)}</td></tr>`);
+                rows.push(`<tr class="border-b border-slate-700/40"><td class="py-1 pl-2 text-slate-500">${info.short}${i}</td><td class="text-right text-emerald-400">${formatUSD(gain)}</td><td class="text-right text-slate-400">${+(fi * 100).toFixed(1)}%</td><td class="text-right text-amber-400">${formatUSD(out)}</td><td class="text-right text-slate-300">${formatUSD(keep)}</td><td class="text-right pr-2 font-semibold text-slate-100">${formatUSD(bal)}</td></tr>`);
                 if (i % info.n === 0) {
                     const y = i / info.n;
-                    rows.push(`<tr class="bg-slate-900/80"><td colspan="5" class="py-1.5 px-2 text-[11px] font-semibold text-purple-300">End of Year ${y} · invested ${formatUSD(bal)} · pulled so far ${formatUSD(pulled)} · total ${formatUSD(bal + pulled)}</td></tr>`);
+                    rows.push(`<tr class="bg-slate-900/80"><td colspan="6" class="py-1.5 px-2 text-[11px] font-semibold text-purple-300">End of Year ${y} · invested ${formatUSD(bal)} · pulled so far ${formatUSD(pulled)} · total ${formatUSD(bal + pulled)}</td></tr>`);
                 }
             }
             document.getElementById('periodRows').innerHTML = rows.join('');
@@ -203,6 +241,7 @@
             document.getElementById('projNote').textContent =
                 calcMode === 'compound' ? `${+ratePct.toFixed(2)}% every period, all reinvested, over ${periods} periods (≈ ${+growAnnual.toFixed(1)}% / yr).`
                 : calcMode === 'simple' ? `${+ratePct.toFixed(2)}% every period, all pulled out: ${formatUSD(P * r)} per period on a flat ${formatUSD(P)} balance.`
+                : growing ? `${+ratePct.toFixed(2)}% every period: pull starts at ${pullPct}% of the gain and rises ${growInput.value}% of itself each period (capped at ${Math.round(Math.max(cap, f) * 100)}%). The rest is reinvested.`
                 : `${+ratePct.toFixed(2)}% every period: ${pullPct}% of the gain pulled out, ${100 - pullPct}% reinvested, so the balance grows ${+effRate.toFixed(3)}% per period (≈ ${+growAnnual.toFixed(1)}% / yr) and the payout grows with it.`;
         }
 
@@ -215,7 +254,11 @@
             render();
         });
         rateVal.addEventListener('blur', render);
-        [capitalInput, yearsInput, pullInput].forEach(el => el.addEventListener('input', render));
+        const growOn = document.getElementById('growOn');
+        const growInput = document.getElementById('grow');
+        const capInput = document.getElementById('pullCap');
+        [capitalInput, yearsInput, pullInput, growInput, capInput].forEach(el => el.addEventListener('input', render));
+        growOn.addEventListener('change', render);
         setCalcMode('compound');
         setPeriod('monthly');
         render();
