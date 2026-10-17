@@ -61,7 +61,16 @@
                     <span id="rateLabel" class="text-slate-300">Return per Month</span>
                     <span class="text-emerald-400 flex items-center"><input id="rateVal" type="number" inputmode="decimal" step="0.05" min="0" class="w-16 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
                 </div>
-                <input type="range" id="rate" min="0" max="5" step="0.05" value="1">
+                <input type="range" id="rate" min="0" max="25" step="0.05" value="1">
+            </div>
+
+            <!-- Calculation mode -->
+            <div>
+                <div class="text-sm font-semibold text-slate-300 mb-1.5">Calculation</div>
+                <div class="grid grid-cols-2 gap-1.5 text-xs font-medium">
+                    <button id="modeCompound" onclick="setCalcMode('compound')" class="py-1.5 rounded-lg border">Compound (reinvest gains)</button>
+                    <button id="modeSimple" onclick="setCalcMode('simple')" class="py-1.5 rounded-lg border">Simple (no reinvesting)</button>
+                </div>
             </div>
 
             <!-- 3. Years -->
@@ -202,6 +211,16 @@
         };
         let period = 'monthly';
         let ratePct = parseFloat(rateInput.value);
+        let calcMode = 'compound';
+
+        function setCalcMode(mode) {
+            calcMode = mode;
+            const on = 'py-1.5 rounded-lg border bg-blue-600 text-white border-blue-500 font-semibold';
+            const off = 'py-1.5 rounded-lg border bg-slate-700 text-slate-300 border-slate-600';
+            document.getElementById('modeCompound').className = mode === 'compound' ? on : off;
+            document.getElementById('modeSimple').className = mode === 'simple' ? on : off;
+            render();
+        }
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
@@ -220,7 +239,9 @@
             const t = parseInt(yearsInput.value);
             const info = PERIOD_INFO[period];
             const periods = info.n * t;
-            const finalVal = P * Math.pow(1 + ratePct / 100, periods);
+            const simple = calcMode === 'simple';
+            // Compound: gains reinvested each period. Simple: each period earns on starting capital only.
+            const finalVal = simple ? P * (1 + ratePct / 100 * periods) : P * Math.pow(1 + ratePct / 100, periods);
 
             document.getElementById('capVal').textContent = formatUSD(P);
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'Year' : 'Years'}`;
@@ -228,9 +249,10 @@
             if (document.activeElement !== rateVal) rateVal.value = String(+ratePct.toFixed(2));
             document.getElementById('projectedVal').textContent = formatUSD(finalVal);
             document.getElementById('gainVal').textContent = formatUSD(finalVal - P);
-            const annual = (Math.pow(1 + ratePct / 100, info.n) - 1) * 100;
-            document.getElementById('projNote').textContent =
-                `${+ratePct.toFixed(2)}% compounded over ${periods} periods (≈ ${+annual.toFixed(1)}% / yr).`;
+            const annual = simple ? ratePct * info.n : (Math.pow(1 + ratePct / 100, info.n) - 1) * 100;
+            document.getElementById('projNote').textContent = simple
+                ? `${+ratePct.toFixed(2)}% simple over ${periods} periods = ${formatUSD(P * ratePct / 100)} per period (${+annual.toFixed(1)}% / yr).`
+                : `${+ratePct.toFixed(2)}% compounded over ${periods} periods (≈ ${+annual.toFixed(1)}% / yr).`;
         }
 
         rateInput.addEventListener('input', () => { ratePct = parseFloat(rateInput.value); render(); });
@@ -243,6 +265,7 @@
         });
         rateVal.addEventListener('blur', render);
         [capitalInput, yearsInput].forEach(el => el.addEventListener('input', render));
+        setCalcMode('compound');
         setPeriod('monthly');
         // ===================== SPREAD MANAGER =====================
         const $ = id => document.getElementById(id);
