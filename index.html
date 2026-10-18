@@ -12,8 +12,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Allocator">
-    <meta name="theme-color" content="#F3EAE2" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#161210" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#E9ECE6" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#161917" media="(prefers-color-scheme: dark)">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -39,23 +39,23 @@
         };
     </script>
     <style>
-        /* Warm paper + bright terracotta. Tokens are RGB triplets so Tailwind opacity (bg-slate-900/70) still works */
+        /* Sage and stone: muted sage header, stone paper. Tokens are RGB triplets so Tailwind opacity (bg-slate-900/70) still works */
         :root {
-            --page: 243 234 226; --surf: 255 251 247;
-            --s100: 26 20 17;  --s200: 46 38 34;  --s300: 74 63 57;  --s400: 110 96 88; --s500: 142 127 118;
-            --s600: 179 165 155; --s700: 227 214 204; --s800: 255 251 247; --s900: 246 237 230;
-            --acc: 228 87 46; --acc-tint: 251 217 203; --grn: 11 138 67; --amb: 214 112 0;
-            --pur: 112 72 232; --sky: 25 113 194; --fuc: 194 37 92; --red: 214 40 40;
-            --hero-a: 240 106 59; --hero-b: 214 70 30;
+            --page: 233 236 230; --surf: 245 246 242;
+            --s100: 17 20 18;  --s200: 28 32 29;  --s300: 44 50 46;  --s400: 62 70 65; --s500: 92 101 95;
+            --s600: 140 149 143; --s700: 204 211 201; --s800: 245 246 242; --s900: 237 240 234;
+            --acc: 44 72 57; --acc-tint: 208 222 213; --on-acc: 255 255 255; --grn: 34 102 62; --amb: 168 116 32;
+            --pur: 107 92 165; --sky: 62 112 150; --fuc: 150 72 110; --red: 178 64 58;
+            --hero: 36 60 47;
             color-scheme: light;
         }
         @media (prefers-color-scheme: dark) { :root {
-            --page: 22 18 16; --surf: 34 28 25;
-            --s100: 245 237 231; --s200: 232 221 213; --s300: 207 194 184; --s400: 168 153 143; --s500: 133 119 110;
-            --s600: 98 86 79;  --s700: 61 52 48;  --s800: 34 28 25;  --s900: 28 23 20;
-            --acc: 255 122 77; --acc-tint: 74 36 24; --grn: 74 222 128; --amb: 251 191 36;
-            --pur: 177 151 252; --sky: 116 192 252; --fuc: 247 131 172; --red: 255 135 135;
-            --hero-a: 232 92 46; --hero-b: 186 56 20;
+            --page: 22 25 23; --surf: 31 35 32;
+            --s100: 230 234 229; --s200: 214 220 213; --s300: 190 198 191; --s400: 154 164 156; --s500: 122 132 124;
+            --s600: 90 99 92;  --s700: 52 59 54;  --s800: 31 35 32;  --s900: 26 30 27;
+            --acc: 143 176 156; --acc-tint: 44 60 51; --on-acc: 22 25 23; --grn: 134 196 152; --amb: 214 172 98;
+            --pur: 170 156 220; --sky: 132 176 210; --fuc: 206 140 172; --red: 226 132 124;
+            --hero: 30 50 39;
             color-scheme: dark;
         } }
         :root {
@@ -76,16 +76,16 @@
         input[type=range]::-webkit-slider-runnable-track { height: 6px; border-radius: 4px; background: linear-gradient(to right, var(--gold) var(--p), var(--line) var(--p)); }
         input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: var(--line); }
         input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--gold); }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px var(--surface), 0 2px 8px rgb(var(--acc) / .45); }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px var(--surface), 0 1px 4px rgba(0,0,0,.2); }
         input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px var(--surface); }
 
         html { font-size: 17px; }
 
         /* Segmented controls */
-        .head-card .seg { background: rgba(60,15,0,.22) !important; border-color: transparent; }
+        .head-card .seg { background: rgba(0,0,0,.18) !important; border-color: transparent; }
         .seg { border: 1px solid var(--line); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--ink); border-radius: 12px; }
         .seg-btn { padding: 8px 6px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
-        .seg-btn.on { background: var(--gold); color: #fff; font-weight: 800; box-shadow: 0 4px 12px -4px rgb(var(--acc) / .6); }
+        .seg-btn.on { background: var(--gold); color: rgb(var(--on-acc)); font-weight: 700; }
 
         /* Input panel */
         .panel { background: var(--surface); border-radius: 22px; padding: 20px 20px 12px; }
@@ -103,9 +103,9 @@
 
         /* Hero result, pinned with the header; shrinks once you scroll */
         .hero { padding-top: 14px; }
-        .hero-val { font-family: var(--serif); font-size: 64px; line-height: 1.02; font-weight: 700; letter-spacing: -0.035em; white-space: nowrap;
-                    color: #fff; text-shadow: 0 2px 18px rgba(80,20,0,.25); }
-        .hero-sub { margin-top: 8px; font-size: 16px; line-height: 1.4; color: rgba(255,255,255,.86); font-weight: 500; }
+        .hero-val { font-family: var(--serif); font-size: 64px; line-height: 1.02; font-weight: 600; letter-spacing: -0.03em; white-space: nowrap;
+                    color: #fff; }
+        .hero-sub { margin-top: 8px; font-size: 16px; line-height: 1.4; color: rgba(255,255,255,.8); font-weight: 500; }
         .hero-sub b { color: #fff; font-weight: 800; }
         #topbar.stuck .hero { padding-top: 8px; }
 
@@ -124,11 +124,11 @@
         details.sec[open] > summary.row-sum { padding-bottom: 10px; }
 
         /* Frames: one around the pinned header, one around everything below it */
-        .head-card { background: linear-gradient(140deg, rgb(var(--hero-a)) 0%, rgb(var(--hero-b)) 100%); border-radius: 24px; padding: 14px 18px 18px;
-                     box-shadow: 0 16px 34px -14px rgb(var(--acc) / .7), inset 0 1px 0 rgba(255,255,255,.25); }
-        .head-card h1 { font-family: var(--serif); font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+        .head-card { background: rgb(var(--hero)); border-radius: 24px; padding: 14px 18px 18px;
+                     box-shadow: 0 10px 24px -16px rgba(0,0,0,.4); }
+        .head-card h1 { font-family: var(--serif); font-weight: 700; color: #fff; letter-spacing: -0.02em; }
         .head-card .tab-btn { color: rgba(255,255,255,.85); }
-        .head-card .tab-btn.on { background: #fff; color: rgb(var(--hero-b)); box-shadow: 0 2px 8px rgba(80,20,0,.25); }
+        .head-card .tab-btn.on { background: rgba(255,255,255,.92); color: rgb(var(--hero)); }
         .frame { background: var(--raised); border: 1px solid var(--line); border-radius: 26px; padding: 10px; }
         .frame .panel, .frame .list { border: 1px solid var(--line); box-shadow: 0 1px 0 var(--line); }
         .list > * + * { border-top-color: var(--line); }
@@ -338,7 +338,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.11</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.13</div>
 
     <script>
         // ===================== ALLOCATOR =====================
