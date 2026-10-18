@@ -26,19 +26,19 @@
         details.sec[open] > summary .chev { transform: rotate(90deg); }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen px-4 pb-12 font-sans select-none">
+<body class="bg-slate-900 text-slate-100 min-h-screen px-4 pb-16 font-sans select-none">
 
     <div class="max-w-md mx-auto space-y-4">
         <!-- Sticky header: title, tabs, live summary -->
-        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-4 pb-2 bg-slate-900/95 backdrop-blur border-b border-slate-800" style="padding-top: calc(env(safe-area-inset-top) + 10px)">
-            <div class="flex items-center justify-between gap-2">
-                <h1 class="text-base font-bold tracking-tight text-white whitespace-nowrap">Allocation &amp; Compounder</h1>
-                <div class="grid grid-cols-2 gap-0.5 p-0.5 bg-slate-800 rounded-lg border border-slate-700 text-xs font-semibold">
+        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-5 pb-3 mb-2 bg-slate-900/95 backdrop-blur border-b border-slate-800" style="padding-top: calc(env(safe-area-inset-top) + 20px)">
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-sm font-bold tracking-tight text-white truncate min-w-0">Allocation &amp; Compounder</h1>
+                <div class="flex shrink-0 gap-0.5 p-0.5 bg-slate-800 rounded-lg border border-slate-700 text-xs font-semibold">
                     <button id="tabAlloc" onclick="showTab('alloc')">Calculator</button>
                     <button id="tabPlan" onclick="showTab('plan')">Planner</button>
                 </div>
             </div>
-            <button id="topSummary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="block w-full text-left text-[11px] text-slate-400 mt-1.5 tabular-nums truncate"></button>
+            <button id="topSummary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="block w-full text-left text-[11px] text-slate-400 mt-2.5 tabular-nums truncate"></button>
         </div>
 
         <div id="viewAlloc" class="space-y-4">
@@ -120,8 +120,12 @@
         </div>
 
         <!-- Result -->
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">End State</div>
+        <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="endstate">
+            <summary class="p-4 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">End State</span>
+                <span class="flex items-center gap-2"><span id="endTag" class="text-[11px] text-emerald-400 font-semibold"></span><span class="chev text-slate-500 text-sm">▶</span></span>
+            </summary>
+            <div class="px-4 pb-4 -mt-1">
             <div class="text-3xl font-extrabold text-emerald-400" id="projectedVal">$0</div>
             <div class="text-xs text-slate-400">Total value (still invested + pulled out)</div>
             <div class="grid grid-cols-3 gap-2 text-center text-xs mt-3">
@@ -130,7 +134,8 @@
                 <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-700/50"><div class="text-[10px] text-slate-400">Total gain</div><div id="gainVal" class="font-bold text-emerald-400 mt-0.5"></div></div>
             </div>
             <div id="projNote" class="text-xs text-slate-500 mt-2"></div>
-        </div>
+            </div>
+        </details>
 
         <div id="calcTrades"></div>
 
@@ -202,8 +207,12 @@
             </div>
         </div>
 
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Return Needed per Period</div>
+        <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="plangrid">
+            <summary class="p-4 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Return Needed per Period</span>
+                <span class="flex items-center gap-2"><span id="planTag" class="text-[11px] text-emerald-400 font-semibold"></span><span class="chev text-slate-500 text-sm">▶</span></span>
+            </summary>
+            <div class="px-4 pb-4 -mt-1">
             <div id="pHeadline" class="text-sm text-slate-300 mb-3"></div>
             <table class="w-full text-center tabular-nums">
                 <thead>
@@ -217,7 +226,8 @@
                 <tbody id="planGrid"></tbody>
             </table>
             <div class="text-[11px] text-slate-500 mt-3">Small number under each % is the yearly equivalent (for Split, how fast the invested balance grows). Red means above 25% per period. Tap a cell to see QQQ / SPY trades for it.</div>
-        </div>
+            </div>
+        </details>
 
         <div id="planTrades"></div>
         </div>
@@ -324,6 +334,7 @@
 
             const total = bal + pulled;
             document.getElementById('projectedVal').textContent = formatUSD(total);
+            document.getElementById('endTag').textContent = formatUSD(total);
             document.getElementById('endBal').textContent = formatUSD(bal);
             document.getElementById('endPulled').textContent = formatUSD(pulled);
             document.getElementById('gainVal').textContent = formatUSD(total - P);
@@ -361,14 +372,14 @@
         // ===================== COLLAPSIBLE SECTIONS =====================
         // Remember open/closed state of <details data-remember="key"> per device
         let sectionState = {};
-        try { sectionState = JSON.parse(localStorage.getItem('sections') || '{}'); } catch (e) {}
+        try { sectionState = JSON.parse(localStorage.getItem('sections.v2') || '{}'); } catch (e) {}
         function rememberSections(root) {
             root.querySelectorAll('details[data-remember]').forEach(d => {
                 const key = d.dataset.remember;
                 if (key in sectionState) d.open = sectionState[key];
                 d.addEventListener('toggle', () => {
                     sectionState[key] = d.open;
-                    try { localStorage.setItem('sections', JSON.stringify(sectionState)); } catch (e) {}
+                    try { localStorage.setItem('sections.v2', JSON.stringify(sectionState)); } catch (e) {}
                 });
             });
         }
@@ -551,7 +562,7 @@
             if (!box.dataset.init) {
                 box.dataset.init = '1';
                 box.innerHTML = `
-                <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="trades-${containerId}" open>
+                <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="trades-${containerId}">
                     <summary class="p-4 flex justify-between items-center">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Ideas · QQQ &amp; SPY</span>
                         <span class="flex items-center gap-2"><span data-role="sumtag" class="text-[11px] text-emerald-400 font-semibold"></span><span class="chev text-slate-500 text-sm">▶</span></span>
@@ -684,8 +695,8 @@
         }
         function showTab(tab) {
             currentTab = tab;
-            const on = 'py-1 px-3 rounded-md bg-blue-600 text-white';
-            const off = 'py-1 px-3 rounded-md text-slate-400';
+            const on = 'py-1 px-2.5 rounded-md bg-blue-600 text-white';
+            const off = 'py-1 px-2.5 rounded-md text-slate-400';
             document.getElementById('tabAlloc').className = tab === 'alloc' ? on : off;
             document.getElementById('tabPlan').className = tab === 'plan' ? on : off;
             document.getElementById('viewAlloc').classList.toggle('hidden', tab !== 'alloc');
@@ -795,6 +806,8 @@
             const [spk, smk] = planSel.split('_');
             planSummary = `${formatUSD(P)} → <b class="text-emerald-400">${formatUSD(target)}</b> in ${t}y · ` +
                 (selR == null ? 'not reachable' : `${+(selR * 100).toFixed(2)}% / ${spk === 'biweekly' ? '2 wk' : PERIOD_INFO[spk].label.toLowerCase()} ${{ compound: 'Compound', simple: 'Simple', split: 'Split' }[smk]}`);
+            document.getElementById('planTag').textContent = selR == null ? '' :
+                `${+(selR * 100).toFixed(2)}% / ${spk === 'biweekly' ? '2 wk' : PERIOD_INFO[spk].label.toLowerCase()}`;
             updateTopSummary();
         }
 
