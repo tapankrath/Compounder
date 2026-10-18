@@ -43,9 +43,9 @@
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Capital to Allocate</span>
-                    <span id="capVal" class="text-blue-400">$100,000</span>
+                    <span id="capVal" class="text-blue-400">$25,000</span>
                 </div>
-                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="100000">
+                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="25000">
             </div>
 
             <!-- 2. Return per period -->
@@ -60,7 +60,7 @@
                     <span id="rateLabel" class="text-slate-300">Return per Month</span>
                     <span class="text-emerald-400 flex items-center"><input id="rateVal" type="number" inputmode="decimal" step="0.05" min="0" class="w-16 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
                 </div>
-                <input type="range" id="rate" min="0" max="25" step="0.05" value="1">
+                <input type="range" id="rate" min="0" max="25" step="0.05" value="15">
             </div>
 
             <!-- Calculation mode -->
@@ -105,9 +105,9 @@
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Target Time Horizon</span>
-                    <span id="yearsVal" class="text-purple-400">5 Years</span>
+                    <span id="yearsVal" class="text-purple-400">2 Years</span>
                 </div>
-                <input type="range" id="years" min="1" max="10" step="1" value="5">
+                <input type="range" id="years" min="1" max="10" step="1" value="2">
             </div>
         </div>
 
@@ -146,9 +146,9 @@
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Starting Capital</span>
-                    <span id="pCapVal" class="text-blue-400">$100,000</span>
+                    <span id="pCapVal" class="text-blue-400">$25,000</span>
                 </div>
-                <input type="range" id="pCapital" min="10000" max="1000000" step="5000" value="100000">
+                <input type="range" id="pCapital" min="10000" max="1000000" step="5000" value="25000">
             </div>
             <div>
                 <div class="flex justify-between items-center text-sm font-semibold">
@@ -160,9 +160,9 @@
             <div>
                 <div class="flex justify-between text-sm font-semibold mb-1">
                     <span class="text-slate-300">Target Years</span>
-                    <span id="pYearsVal" class="text-purple-400">5 Years</span>
+                    <span id="pYearsVal" class="text-purple-400">2 Years</span>
                 </div>
-                <input type="range" id="pYears" min="1" max="10" step="1" value="5">
+                <input type="range" id="pYears" min="1" max="10" step="1" value="2">
             </div>
             <div class="pt-1 border-t border-slate-700/60">
                 <div class="flex justify-between text-sm font-semibold mt-3 mb-1">
@@ -225,7 +225,7 @@
             biweekly: { label: 'Two Weeks', short: 'B', n: 26 },
             monthly:  { label: 'Month',     short: 'M', n: 12 }
         };
-        let period = 'monthly';
+        let period = 'biweekly';
         let ratePct = parseFloat(rateInput.value);
         let calcMode = 'compound';
         let tradesReady = false;
@@ -342,7 +342,7 @@
         [capitalInput, yearsInput, pullInput, growInput, capInput].forEach(el => el.addEventListener('input', render));
         growOn.addEventListener('change', render);
         setCalcMode('compound');
-        setPeriod('monthly');
+        setPeriod('biweekly');
         render();
 
         // ===================== TRADE IDEAS (QQQ / SPY) =====================
@@ -668,7 +668,7 @@
         const pEl = id => document.getElementById(id);
         const parseMoney = str => parseFloat(String(str).replace(/[^0-9.]/g, ''));
         let planCells = {};
-        let planSel = 'monthly_compound';
+        let planSel = 'biweekly_compound';
 
         function selectPlanCell(pk, mk) {
             planSel = pk + '_' + mk;
