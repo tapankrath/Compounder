@@ -61,6 +61,7 @@
         html { font-size: 17px; }
 
         /* Segmented controls */
+        .head-card .seg { background: rgba(0,0,0,.25) !important; }
         .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--ink); border-radius: 12px; }
         .seg-btn { padding: 8px 6px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
         .seg-btn.on { background: var(--raised); color: var(--gold); box-shadow: inset 0 0 0 1px #4A4363; }
@@ -81,7 +82,7 @@
 
         /* Hero result, pinned with the header; shrinks once you scroll */
         .hero { padding-top: 14px; }
-        .hero-val { font-size: 54px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: var(--mint); transition: font-size .2s; }
+        .hero-val { font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: var(--mint); transition: font-size .2s; }
         .hero-sub { margin-top: 8px; font-size: 16px; line-height: 1.4; color: var(--muted); }
         .hero-sub b { color: var(--text); font-weight: 700; }
         #topbar.stuck .hero { padding-top: 8px; }
@@ -100,21 +101,28 @@
         details.sec[open] > summary .chev { transform: rotate(90deg); }
         details.sec[open] > summary.row-sum { padding-bottom: 10px; }
 
+        /* Frames: one around the pinned header, one around everything below it */
+        .head-card { background: linear-gradient(180deg, #24203A 0%, #1C1A28 100%); border: 1.5px solid #E9B949; border-radius: 24px; padding: 14px 18px 18px; box-shadow: 0 12px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05); }
+        .frame { background: #18161F; border: 1.5px solid #9187C2; border-radius: 26px; padding: 10px; }
+        .frame .panel, .frame .list { border: 1px solid #615A85; }
+        .list > * + * { border-top-color: #615A85; }
+
         /* Sticky header */
-        #topbar { padding-top: calc(env(safe-area-inset-top) + 10px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
-        #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 8px); border-bottom-color: var(--line); }
+        #topbar { padding-top: calc(env(safe-area-inset-top) + 8px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
+        #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 8px); }
         .tab-btn { padding: 7px 14px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); }
         .tab-btn.on { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px #4A4363; }
 
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
 </head>
-<body class="text-slate-100 min-h-screen px-4 pb-10 font-sans select-none" style="background: var(--ink)">
+<body class="text-slate-100 min-h-screen px-3 pb-10 font-sans select-none" style="background: var(--ink)">
 
-    <div class="max-w-md mx-auto space-y-4">
+    <div class="max-w-md mx-auto space-y-2">
         <div id="topSentinel" style="height:1px;margin-bottom:-1px"></div>
         <!-- Sticky header -->
-        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-5 pb-3" style="background: rgba(21,19,29,.92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px)">
+        <div id="topbar" class="sticky top-0 z-30 -mx-3 px-3 pb-2.5" style="background: rgba(21,19,29,.9); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px)">
+          <div class="head-card">
             <div class="flex items-center justify-between gap-3">
                 <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
                 <div class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
@@ -130,10 +138,11 @@
                 <div id="heroPlanVal" class="hero-val">0%</div>
                 <div id="heroPlanSub" class="hero-sub"></div>
             </div>
+          </div>
         </div>
 
         <!-- ===================== CALCULATOR ===================== -->
-        <div id="viewAlloc" class="space-y-4">
+        <div id="viewAlloc" class="frame space-y-2.5">
 
         <div class="panel">
             <div class="field">
@@ -234,7 +243,7 @@
         </div>
 
         <!-- ===================== PLANNER ===================== -->
-        <div id="viewPlan" class="space-y-4 hidden">
+        <div id="viewPlan" class="frame space-y-2.5 hidden">
 
         <div class="panel">
             <div class="field">
@@ -302,7 +311,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.7</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.9</div>
 
     <script>
         // ===================== ALLOCATOR =====================
