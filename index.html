@@ -20,6 +20,10 @@
         input[type=range] { width: 100%; accent-color: #2563eb; }
         input, select, textarea { -webkit-user-select: text; user-select: text; }
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        details.sec > summary { list-style: none; cursor: pointer; }
+        details.sec > summary::-webkit-details-marker { display: none; }
+        details.sec > summary .chev { transition: transform .15s; display: inline-block; }
+        details.sec[open] > summary .chev { transform: rotate(90deg); }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 pb-12 font-sans select-none">
@@ -127,8 +131,10 @@
         <div id="calcTrades"></div>
 
         <!-- Period-by-period -->
-        <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
-            <div class="p-4 pb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Return by Period</div>
+        <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="periods">
+            <summary class="p-4 flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <span>Return by Period</span><span class="chev text-slate-500 text-sm">▶</span>
+            </summary>
             <div class="max-h-96 overflow-y-auto px-2 pb-2">
                 <table class="w-full text-[11px] tabular-nums">
                     <thead class="sticky top-0 bg-slate-800 text-slate-400">
@@ -137,7 +143,7 @@
                     <tbody id="periodRows"></tbody>
                 </table>
             </div>
-        </div>
+        </details>
         </div>
 
         <!-- ===================== TARGET PLANNER ===================== -->
@@ -221,9 +227,9 @@
         const yearsInput = document.getElementById('years');
         const pullInput = document.getElementById('pull');
         const PERIOD_INFO = {
-            weekly:   { label: 'Week',      short: 'W', n: 52 },
-            biweekly: { label: 'Two Weeks', short: 'B', n: 26 },
-            monthly:  { label: 'Month',     short: 'M', n: 12 }
+            weekly:   { label: 'Week',      short: 'W', n: 52, plural: 'weeks' },
+            biweekly: { label: 'Two Weeks', short: 'B', n: 26, plural: 'two-week periods' },
+            monthly:  { label: 'Month',     short: 'M', n: 12, plural: 'months' }
         };
         let period = 'biweekly';
         let ratePct = parseFloat(rateInput.value);
@@ -344,6 +350,24 @@
         setCalcMode('compound');
         setPeriod('biweekly');
         render();
+
+        // ===================== COLLAPSIBLE SECTIONS =====================
+        // Remember open/closed state of <details data-remember="key"> per device
+        let sectionState = {};
+        try { sectionState = JSON.parse(localStorage.getItem('sections') || '{}'); } catch (e) {}
+        function rememberSections(root) {
+            root.querySelectorAll('details[data-remember]').forEach(d => {
+                const key = d.dataset.remember;
+                if (key in sectionState) d.open = sectionState[key];
+                d.addEventListener('toggle', () => {
+                    sectionState[key] = d.open;
+                    try { localStorage.setItem('sections', JSON.stringify(sectionState)); } catch (e) {}
+                });
+            });
+        }
+        let tickerOpen = {};
+        try { tickerOpen = JSON.parse(localStorage.getItem('tickerOpen') || '{}'); } catch (e) {}
+        rememberSections(document);
 
         // ===================== TRADE IDEAS (QQQ / SPY) =====================
         const RFR = 0.04;                                   // risk-free rate for Black-Scholes
@@ -482,7 +506,7 @@
         const fmtK = k => (Math.round(k * 100) / 100).toString();
         const fmtDate = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
-        function tradeBlock(t, ch, w, r, capital, periodLabel) {
+        function tradeBlock(t, ch, w, r, capital, info) {
             const maxProfit = t.credit * 100, maxLoss = (w - t.credit) * 100;
             const frac = Math.min(1, r / t.ror);                 // share of capital to put at risk
             const contracts = Math.floor(capital * frac / maxLoss);
@@ -511,7 +535,7 @@
                         <div><span class="text-slate-500">Win rate needed</span><br>${Math.round(beWin * 100)}%</div>
                     </div>
                     <div class="text-[11px] text-slate-400 mt-2">${sizeLine}</div>
-                    <div class="text-[11px] text-slate-500 mt-1">One full loss wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${periodLabel.toLowerCase()}s.</div>
+                    <div class="text-[11px] text-slate-500 mt-1">One full loss wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
                 </div>`;
         }
 
@@ -520,9 +544,13 @@
             if (!box.dataset.init) {
                 box.dataset.init = '1';
                 box.innerHTML = `
-                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg space-y-3">
-                    <div class="flex justify-between items-center">
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Ideas · QQQ &amp; SPY</div>
+                <details class="sec bg-slate-800 rounded-xl border border-slate-700 shadow-lg" data-remember="trades-${containerId}" open>
+                    <summary class="p-4 flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Trade Ideas · QQQ &amp; SPY</span>
+                        <span class="flex items-center gap-2"><span data-role="sumtag" class="text-[11px] text-emerald-400 font-semibold"></span><span class="chev text-slate-500 text-sm">▶</span></span>
+                    </summary>
+                <div class="px-4 pb-4 space-y-3">
+                    <div class="flex justify-end">
                         <div class="flex gap-2">
                         <label class="text-[11px] text-slate-400">Δ
                             <select data-role="delta" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
@@ -548,9 +576,21 @@
                         </div>
                         <div class="text-[11px] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
                     </details>
-                    <div data-role="results" class="space-y-4"></div>
-                    <div class="text-[10px] text-slate-500 leading-snug">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On risk" is the return if the spread expires worthless; prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
-                </div>`;
+                    <div data-role="results" class="space-y-3"></div>
+                    <details class="sec text-[10px] text-slate-500 leading-snug" data-remember="trades-help">
+                        <summary class="text-[11px] font-semibold text-slate-400"><span class="chev">▶</span> How these are picked</summary>
+                        <div class="mt-1">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On risk" is the return if the spread expires worthless; prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                    </details>
+                </div>
+                </details>`;
+                rememberSections(box);
+                // Per-ticker sections are re-rendered, so track their open state here
+                box.addEventListener('toggle', e => {
+                    const tk = e.target.dataset && e.target.dataset.ticker;
+                    if (!tk) return;
+                    tickerOpen[tk] = e.target.open;
+                    try { localStorage.setItem('tickerOpen', JSON.stringify(tickerOpen)); } catch (err) {}
+                }, true);
                 box.querySelector('[data-role=width]').addEventListener('change', e => {
                     tradeWidth = parseFloat(e.target.value);
                     try { localStorage.setItem('tradeWidth', tradeWidth); } catch (err) {}
@@ -592,6 +632,7 @@
 
             if (ratePctIn == null) { head.innerHTML = 'Target not reachable at this period length.'; res.innerHTML = ''; return; }
             const r = ratePctIn / 100;
+            box.querySelector('[data-role=sumtag]').textContent = `${+ratePctIn.toFixed(2)}% / ${info.short === 'B' ? '2 wk' : info.label.toLowerCase()}`;
             head.innerHTML = `Need <b class="text-emerald-400">${+ratePctIn.toFixed(2)}%</b> per ${info.label.toLowerCase()} on ${formatUSD(capital)}${subtitle ? ' · ' + subtitle : ''}`;
             if (r <= 0) { res.innerHTML = '<div class="text-xs text-slate-400">No return needed.</div>'; return; }
 
@@ -605,11 +646,13 @@
                 const expTxt = ch.exp ? `${fmtDate(ch.exp)} · ${ch.dte} DTE` : `~${ch.dte} DTE`;
                 const bp = findBullPut(ch, w, r, tradeDelta), ic = findCondor(ch, w, r, Math.min(tradeDelta, 0.16));
                 const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry pays ${+ratePctIn.toFixed(2)}% on risk.</div>`;
-                return `<div class="space-y-2">
-                    <div class="flex justify-between items-baseline"><span class="text-sm font-bold text-slate-200">${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></div>
-                    ${bp ? tradeBlock(bp, ch, w, r, capital, info.label) : none('Bull Put Spread')}
-                    ${ic ? tradeBlock(ic, ch, w, r, capital, info.label) : none('Iron Condor')}
-                </div>`;
+                return `<details class="sec" data-ticker="${tk}" ${tickerOpen[tk] !== false ? 'open' : ''}>
+                    <summary class="flex justify-between items-baseline py-1"><span class="text-sm font-bold text-slate-200"><span class="chev text-slate-500 text-xs mr-1">▶</span>${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></summary>
+                    <div class="space-y-2 mt-1">
+                    ${bp ? tradeBlock(bp, ch, w, r, capital, info) : none('Bull Put Spread')}
+                    ${ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor')}
+                    </div>
+                </details>`;
             }).join('');
         }
 
