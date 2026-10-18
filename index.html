@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Portfolio Allocation Tool</title>
     
     <!-- Web App & Home Screen Meta Tags -->
@@ -26,27 +26,27 @@
         details.sec[open] > summary .chev { transform: rotate(90deg); }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 pb-12 font-sans select-none">
+<body class="bg-slate-900 text-slate-100 min-h-screen px-4 pb-12 font-sans select-none">
 
-    <div class="max-w-md mx-auto space-y-5 pt-2">
-        <!-- Header -->
-        <div class="text-center">
-            <h1 class="text-2xl font-bold tracking-tight text-white">Allocation & Compounder</h1>
-            <p class="text-xs text-slate-400 mt-1">Return &amp; Payout Calculator</p>
+    <div class="max-w-md mx-auto space-y-4">
+        <!-- Sticky header: title, tabs, live summary -->
+        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-4 pb-2 bg-slate-900/95 backdrop-blur border-b border-slate-800" style="padding-top: calc(env(safe-area-inset-top) + 10px)">
+            <div class="flex items-center justify-between gap-2">
+                <h1 class="text-base font-bold tracking-tight text-white whitespace-nowrap">Allocation &amp; Compounder</h1>
+                <div class="grid grid-cols-2 gap-0.5 p-0.5 bg-slate-800 rounded-lg border border-slate-700 text-xs font-semibold">
+                    <button id="tabAlloc" onclick="showTab('alloc')">Calculator</button>
+                    <button id="tabPlan" onclick="showTab('plan')">Planner</button>
+                </div>
+            </div>
+            <button id="topSummary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="block w-full text-left text-[11px] text-slate-400 mt-1.5 tabular-nums truncate"></button>
         </div>
 
-        <!-- Tabs -->
-        <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-800 rounded-xl border border-slate-700 text-sm font-semibold">
-            <button id="tabAlloc" onclick="showTab('alloc')">Calculator</button>
-            <button id="tabPlan" onclick="showTab('plan')">Target Planner</button>
-        </div>
-
-        <div id="viewAlloc" class="space-y-5">
-        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-5 shadow-lg">
+        <div id="viewAlloc" class="space-y-4">
+        <div class="bg-slate-800 p-3.5 rounded-xl border border-slate-700 space-y-3.5 shadow-lg">
             <!-- 1. Capital -->
             <div>
-                <div class="flex justify-between text-sm font-semibold mb-1">
-                    <span class="text-slate-300">Capital to Allocate</span>
+                <div class="flex justify-between text-sm font-semibold">
+                    <span class="text-slate-300">Capital</span>
                     <span id="capVal" class="text-blue-400">$25,000</span>
                 </div>
                 <input type="range" id="capital" min="10000" max="1000000" step="5000" value="25000">
@@ -54,13 +54,15 @@
 
             <!-- 2. Return per period -->
             <div>
-                <div class="text-sm font-semibold text-slate-300 mb-1.5">Return Period</div>
-                <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
+                <div class="flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold text-slate-300">Period</div>
+                <div class="grid grid-cols-3 gap-1 text-xs font-medium flex-1 max-w-[16rem]">
                     <button id="per_weekly" onclick="setPeriod('weekly')" class="py-1.5 rounded-lg border">Weekly</button>
                     <button id="per_biweekly" onclick="setPeriod('biweekly')" class="py-1.5 rounded-lg border">Biweekly</button>
                     <button id="per_monthly" onclick="setPeriod('monthly')" class="py-1.5 rounded-lg border">Monthly</button>
                 </div>
-                <div class="flex justify-between text-sm font-semibold mt-3 mb-1">
+                </div>
+                <div class="flex justify-between text-sm font-semibold mt-3">
                     <span id="rateLabel" class="text-slate-300">Return per Month</span>
                     <span class="text-emerald-400 flex items-center"><input id="rateVal" type="number" inputmode="decimal" step="0.05" min="0" class="w-16 bg-transparent text-right text-emerald-400 font-semibold focus:outline-none border-b border-dashed border-emerald-500/40 focus:border-emerald-400">%</span>
                 </div>
@@ -69,11 +71,13 @@
 
             <!-- Calculation mode -->
             <div>
-                <div class="text-sm font-semibold text-slate-300 mb-1.5">Calculation</div>
-                <div class="grid grid-cols-3 gap-1.5 text-xs font-medium">
-                    <button id="modeCompound" onclick="setCalcMode('compound')" class="py-1.5 rounded-lg border leading-tight">Compound<div class="text-[10px] font-normal opacity-75">reinvest all</div></button>
-                    <button id="modeSimple" onclick="setCalcMode('simple')" class="py-1.5 rounded-lg border leading-tight">Simple<div class="text-[10px] font-normal opacity-75">pull out all</div></button>
-                    <button id="modeSplit" onclick="setCalcMode('split')" class="py-1.5 rounded-lg border leading-tight">Split<div class="text-[10px] font-normal opacity-75">pull some back</div></button>
+                <div class="flex items-center justify-between gap-3">
+                <div class="text-sm font-semibold text-slate-300">Mode</div>
+                <div class="grid grid-cols-3 gap-1 text-xs font-medium flex-1 max-w-[16rem]">
+                    <button id="modeCompound" onclick="setCalcMode('compound')" title="Reinvest all gains" class="py-1.5 rounded-lg border">Compound</button>
+                    <button id="modeSimple" onclick="setCalcMode('simple')" title="Pull out all gains" class="py-1.5 rounded-lg border">Simple</button>
+                    <button id="modeSplit" onclick="setCalcMode('split')" title="Pull some gains back" class="py-1.5 rounded-lg border">Split</button>
+                </div>
                 </div>
                 <div id="splitWrap" class="hidden mt-3">
                     <div class="flex justify-between text-sm font-semibold mb-1">
@@ -107,8 +111,8 @@
 
             <!-- 3. Years -->
             <div>
-                <div class="flex justify-between text-sm font-semibold mb-1">
-                    <span class="text-slate-300">Target Time Horizon</span>
+                <div class="flex justify-between text-sm font-semibold">
+                    <span class="text-slate-300">Years</span>
                     <span id="yearsVal" class="text-purple-400">2 Years</span>
                 </div>
                 <input type="range" id="years" min="1" max="10" step="1" value="2">
@@ -235,13 +239,14 @@
         let ratePct = parseFloat(rateInput.value);
         let calcMode = 'compound';
         let tradesReady = false;
+        var currentTab = 'alloc', calcSummary = '', planSummary = '';
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
         }
 
-        const ON = 'py-1.5 rounded-lg border leading-tight bg-blue-600 text-white border-blue-500 font-semibold';
-        const OFF = 'py-1.5 rounded-lg border leading-tight bg-slate-700 text-slate-300 border-slate-600';
+        const ON = 'py-1.5 rounded-lg border bg-blue-600 text-white border-blue-500 font-semibold';
+        const OFF = 'py-1.5 rounded-lg border bg-slate-700 text-slate-300 border-slate-600';
 
         function setCalcMode(mode) {
             calcMode = mode;
@@ -331,6 +336,8 @@
                 : growing ? `${+ratePct.toFixed(2)}% every period: pull starts at ${pullPct}% of the gain and rises ${growInput.value}% of itself each period (capped at ${Math.round(Math.max(cap, f) * 100)}%). The rest is reinvested.`
                 : `${+ratePct.toFixed(2)}% every period: ${pullPct}% of the gain pulled out, ${100 - pullPct}% reinvested, so the balance grows ${+effRate.toFixed(3)}% per period (≈ ${+growAnnual.toFixed(1)}% / yr) and the payout grows with it.`;
             if (tradesReady) renderTrades('calcTrades', period, ratePct, P, '');
+            calcSummary = `${formatUSD(P)} · ${+ratePct.toFixed(2)}% / ${info.short === 'B' ? '2 wk' : info.label.toLowerCase()} · ${{ compound: 'Compound', simple: 'Simple', split: 'Split' }[calcMode]} · ${t}y → <b class="text-emerald-400">${formatUSD(total)}</b>`;
+            if (typeof updateTopSummary === 'function') updateTopSummary();
         }
 
         rateInput.addEventListener('input', () => { ratePct = parseFloat(rateInput.value); render(); });
@@ -671,14 +678,20 @@
         render();
 
         // ===================== TABS =====================
+        function updateTopSummary() {
+            const el = document.getElementById('topSummary');
+            if (el) el.innerHTML = currentTab === 'alloc' ? calcSummary : planSummary;
+        }
         function showTab(tab) {
-            const on = 'py-2 rounded-lg bg-blue-600 text-white';
-            const off = 'py-2 rounded-lg text-slate-400';
+            currentTab = tab;
+            const on = 'py-1 px-3 rounded-md bg-blue-600 text-white';
+            const off = 'py-1 px-3 rounded-md text-slate-400';
             document.getElementById('tabAlloc').className = tab === 'alloc' ? on : off;
             document.getElementById('tabPlan').className = tab === 'plan' ? on : off;
             document.getElementById('viewAlloc').classList.toggle('hidden', tab !== 'alloc');
             document.getElementById('viewPlan').classList.toggle('hidden', tab !== 'plan');
             if (tab === 'plan') renderPlan();
+            updateTopSummary();
             window.scrollTo(0, 0);
         }
 
@@ -778,6 +791,11 @@
                 return `<tr><th class="text-left text-xs font-semibold text-slate-300 pr-1">${{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[pk]}</th>${cells}</tr>`;
             }).join('');
             renderPlanTrades();
+            const selR = planCells[planSel];
+            const [spk, smk] = planSel.split('_');
+            planSummary = `${formatUSD(P)} → <b class="text-emerald-400">${formatUSD(target)}</b> in ${t}y · ` +
+                (selR == null ? 'not reachable' : `${+(selR * 100).toFixed(2)}% / ${spk === 'biweekly' ? '2 wk' : PERIOD_INFO[spk].label.toLowerCase()} ${{ compound: 'Compound', simple: 'Simple', split: 'Split' }[smk]}`);
+            updateTopSummary();
         }
 
         // Load a planner cell into the Calculator tab
