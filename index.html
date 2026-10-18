@@ -58,46 +58,52 @@
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px var(--surface), 0 2px 6px rgba(0,0,0,.5); }
         input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 5px var(--surface); }
 
+        html { font-size: 17px; }
+
         /* Segmented controls */
-        .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--ink); border-radius: 11px; }
-        .seg-btn { padding: 7px 6px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
+        .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 3px; background: var(--ink); border-radius: 12px; }
+        .seg-btn { padding: 8px 6px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
         .seg-btn.on { background: var(--raised); color: var(--gold); box-shadow: inset 0 0 0 1px #4A4363; }
 
         /* Input panel */
-        .panel { background: var(--surface); border-radius: 20px; padding: 18px 18px 10px; }
-        .field { padding-bottom: 8px; }
-        .field + .field { margin-top: 10px; }
+        .panel { background: var(--surface); border-radius: 22px; padding: 20px 20px 12px; }
+        .field { padding-bottom: 6px; }
+        .field + .field { margin-top: 12px; }
         .field-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-        .field-label { font-size: 14px; font-weight: 600; color: var(--muted); }
-        .field-val { font-size: 16px; font-weight: 700; color: var(--text); }
-        .field-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-        .field-row .seg { flex: 1; max-width: 15.5rem; }
-        .sub { border-left: 2px solid var(--line); padding-left: 14px; margin-top: 10px; }
+        .field-label { font-size: 16px; font-weight: 600; color: var(--muted); }
+        .field-val { font-size: 19px; font-weight: 700; color: var(--text); }
+        .field-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+        .field-row .seg { flex: 1; max-width: 17rem; }
+        .sub { border-left: 2px solid var(--line); padding-left: 14px; margin-top: 12px; }
+        input[type=range] { height: 34px; }
+        input[type=range]::-webkit-slider-thumb { width: 26px; height: 26px; margin-top: -11px; }
+        input[type=range]::-moz-range-thumb { width: 26px; height: 26px; }
 
-        /* Hero result */
-        .hero { padding: 6px 4px 2px; }
-        .hero-val { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: var(--mint); }
-        .hero-sub { margin-top: 10px; font-size: 14px; line-height: 1.45; color: var(--muted); max-width: 34ch; }
+        /* Hero result, pinned with the header; shrinks once you scroll */
+        .hero { padding-top: 14px; }
+        .hero-val { font-size: 54px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: var(--mint); transition: font-size .2s; }
+        .hero-sub { margin-top: 8px; font-size: 16px; line-height: 1.4; color: var(--muted); }
         .hero-sub b { color: var(--text); font-weight: 700; }
+        #topbar.stuck .hero { padding-top: 8px; }
+        #topbar.stuck .hero-val { font-size: 36px; }
+        #topbar.stuck .hero-sub { font-size: 14px; margin-top: 4px; }
 
         /* Grouped list of collapsible results */
-        .list { background: var(--surface); border-radius: 20px; overflow: hidden; }
+        .list { background: var(--surface); border-radius: 22px; overflow: hidden; }
         .list > * + * { border-top: 1px solid var(--line); }
         details.sec > summary { list-style: none; cursor: pointer; }
         details.sec > summary::-webkit-details-marker { display: none; }
-        .row-sum { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px; }
-        .row-title { font-size: 15px; font-weight: 700; color: var(--text); }
-        .row-tag { font-size: 13px; font-weight: 600; color: var(--mint); }
-        .chev { display: inline-block; color: var(--dim); font-size: 20px; line-height: 1; transition: transform .2s; }
+        .row-sum { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 20px; }
+        .row-title { font-size: 17px; font-weight: 700; color: var(--text); }
+        .row-tag { font-size: 15px; font-weight: 600; color: var(--mint); }
+        .chev { display: inline-block; color: var(--dim); font-size: 22px; line-height: 1; transition: transform .2s; }
         details.sec[open] > summary .chev { transform: rotate(90deg); }
         details.sec[open] > summary.row-sum { padding-bottom: 10px; }
 
         /* Sticky header */
-        #topbar { padding-top: calc(env(safe-area-inset-top) + 18px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
-        #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 12px); border-bottom-color: var(--line); }
-        #topSummary { display: none; }
-        #topbar.stuck #topSummary { display: block; }
-        .tab-btn { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+        #topbar { padding-top: calc(env(safe-area-inset-top) + 10px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
+        #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 8px); border-bottom-color: var(--line); }
+        .tab-btn { padding: 7px 14px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); }
         .tab-btn.on { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px #4A4363; }
 
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -110,21 +116,24 @@
         <!-- Sticky header -->
         <div id="topbar" class="sticky top-0 z-30 -mx-4 px-5 pb-3" style="background: rgba(21,19,29,.92); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px)">
             <div class="flex items-center justify-between gap-3">
-                <h1 class="text-[15px] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
+                <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
                 <div class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
                     <button id="tabAlloc" class="tab-btn" onclick="showTab('alloc')">Calculator</button>
                     <button id="tabPlan" class="tab-btn" onclick="showTab('plan')">Planner</button>
                 </div>
             </div>
-            <button id="topSummary" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="w-full text-left text-[12px] text-slate-400 mt-2 truncate"></button>
+            <div id="heroAllocWrap" class="hero">
+                <div id="heroVal" class="hero-val">$0</div>
+                <div id="heroSub" class="hero-sub"></div>
+            </div>
+            <div id="heroPlanWrap" class="hero" style="display:none">
+                <div id="heroPlanVal" class="hero-val">0%</div>
+                <div id="heroPlanSub" class="hero-sub"></div>
+            </div>
         </div>
 
         <!-- ===================== CALCULATOR ===================== -->
         <div id="viewAlloc" class="space-y-4">
-        <div class="hero">
-            <div id="heroVal" class="hero-val">$0</div>
-            <div id="heroSub" class="hero-sub"></div>
-        </div>
 
         <div class="panel">
             <div class="field">
@@ -162,8 +171,8 @@
                 </div>
                 <div id="splitWrap" class="hidden sub">
                     <div class="field-head mt-1">
-                        <span class="field-label">Pull back each period</span>
-                        <span class="text-sm font-bold text-amber-400"><span id="pullVal">25</span>% of gain, <span id="keepVal">75</span>% reinvested</span>
+                        <span class="field-label">Pull back</span>
+                        <span class="text-sm font-bold text-amber-400"><span id="pullVal">25</span>% out, <span id="keepVal">75</span>% kept</span>
                     </div>
                     <input type="range" id="pull" min="5" max="95" step="5" value="25" aria-label="Pull back each period">
                     <label class="flex items-center gap-2 mt-1 text-sm font-semibold text-slate-300 cursor-pointer">
@@ -178,7 +187,7 @@
                             <div class="field-head"><span class="text-xs font-semibold text-slate-400">Stop growing at</span><span class="text-xs font-bold text-amber-400"><span id="capVal2">100</span>% pulled</span></div>
                             <input type="range" id="pullCap" min="30" max="100" step="5" value="100" aria-label="Stop growing at">
                         </div>
-                        <div id="growPreview" class="text-[11px] text-slate-500 pb-1"></div>
+                        <div id="growPreview" class="text-[0.75rem] text-slate-500 pb-1"></div>
                     </div>
                 </div>
             </div>
@@ -195,12 +204,12 @@
                     <span class="row-title">Breakdown</span>
                     <span class="flex items-center gap-2"><span id="endTag" class="row-tag"></span><span class="chev">›</span></span>
                 </summary>
-                <div class="px-[18px] pb-4">
+                <div class="px-[20px] pb-4">
                     <div class="text-sm text-slate-400">Total value <span id="projectedVal" class="font-bold text-slate-100">$0</span>, still invested plus pulled out.</div>
                     <div class="grid grid-cols-3 gap-2 text-center mt-3">
-                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[11px] text-slate-400">Still invested</div><div id="endBal" class="text-sm font-bold text-slate-100 mt-0.5"></div></div>
-                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[11px] text-slate-400">Pulled out</div><div id="endPulled" class="text-sm font-bold text-amber-400 mt-0.5"></div></div>
-                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[11px] text-slate-400">Total gain</div><div id="gainVal" class="text-sm font-bold text-emerald-400 mt-0.5"></div></div>
+                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[0.75rem] text-slate-400">Still invested</div><div id="endBal" class="text-sm font-bold text-slate-100 mt-0.5"></div></div>
+                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[0.75rem] text-slate-400">Pulled out</div><div id="endPulled" class="text-sm font-bold text-amber-400 mt-0.5"></div></div>
+                        <div class="py-2.5 rounded-xl bg-slate-900"><div class="text-[0.75rem] text-slate-400">Total gain</div><div id="gainVal" class="text-sm font-bold text-emerald-400 mt-0.5"></div></div>
                     </div>
                     <div id="projNote" class="text-xs text-slate-500 mt-3 leading-relaxed"></div>
                 </div>
@@ -213,7 +222,7 @@
                     <span class="row-title">Period by period</span><span class="chev">›</span>
                 </summary>
                 <div class="max-h-96 overflow-y-auto px-2 pb-2">
-                    <table class="w-full text-[11px]">
+                    <table class="w-full text-[0.75rem]">
                         <thead class="sticky top-0 bg-slate-800 text-slate-400">
                             <tr><th class="text-left font-semibold py-1.5 pl-2">#</th><th class="text-right font-semibold">Gain</th><th class="text-right font-semibold">Pull %</th><th class="text-right font-semibold">Pulled</th><th class="text-right font-semibold">Reinvested</th><th class="text-right font-semibold pr-2">Balance</th></tr>
                         </thead>
@@ -226,10 +235,6 @@
 
         <!-- ===================== PLANNER ===================== -->
         <div id="viewPlan" class="space-y-4 hidden">
-        <div class="hero">
-            <div id="heroPlanVal" class="hero-val">0%</div>
-            <div id="heroPlanSub" class="hero-sub"></div>
-        </div>
 
         <div class="panel">
             <div class="field">
@@ -249,8 +254,8 @@
             </div>
             <div class="field">
                 <div class="field-head">
-                    <span class="field-label">Split pulls back</span>
-                    <span class="text-sm font-bold text-amber-400"><span id="pPullVal">25</span>% of gain, <span id="pKeepVal">75</span>% reinvested</span>
+                    <span class="field-label">Split</span>
+                    <span class="text-sm font-bold text-amber-400"><span id="pPullVal">25</span>% out, <span id="pKeepVal">75</span>% kept</span>
                 </div>
                 <input type="range" id="pPull" min="5" max="95" step="5" value="25" aria-label="Split pull back">
                 <label class="flex items-center gap-2 mt-1 text-sm font-semibold text-slate-300 cursor-pointer">
@@ -275,20 +280,20 @@
                     <span class="row-title">Return needed</span>
                     <span class="flex items-center gap-2"><span id="planTag" class="row-tag"></span><span class="chev">›</span></span>
                 </summary>
-                <div class="px-[18px] pb-4">
+                <div class="px-[20px] pb-4">
                     <div id="pHeadline" class="text-sm text-slate-400 mb-3"></div>
                     <table class="w-full text-center">
                         <thead>
-                            <tr class="text-[12px] text-slate-400">
+                            <tr class="text-[0.8rem] text-slate-400">
                                 <th></th>
                                 <th class="font-semibold pb-1.5">Compound</th>
                                 <th class="font-semibold pb-1.5">Simple</th>
-                                <th class="font-semibold pb-1.5">Split<div id="pSplitSub" class="text-[10px] font-normal opacity-75"></div></th>
+                                <th class="font-semibold pb-1.5">Split<div id="pSplitSub" class="text-[0.68rem] font-normal opacity-75"></div></th>
                             </tr>
                         </thead>
                         <tbody id="planGrid"></tbody>
                     </table>
-                    <div class="text-[11px] text-slate-500 mt-3 leading-relaxed">The small number is the yearly equivalent (for Split, how fast the invested balance grows). Red is above 25% per period. Tap a cell to see trades for it.</div>
+                    <div class="text-[0.75rem] text-slate-500 mt-3 leading-relaxed">The small number is the yearly equivalent (for Split, how fast the invested balance grows). Red is above 25% per period. Tap a cell to see trades for it.</div>
                 </div>
             </details>
 
@@ -297,7 +302,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[10px] text-slate-600 mt-10">build 2026-10-18.6</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.7</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -402,7 +407,7 @@
                 rows.push(`<tr class="border-b border-slate-700/40"><td class="py-1 pl-2 text-slate-500">${info.short}${i}</td><td class="text-right text-emerald-400">${formatUSD(gain)}</td><td class="text-right text-slate-400">${+(fi * 100).toFixed(1)}%</td><td class="text-right text-amber-400">${formatUSD(out)}</td><td class="text-right text-slate-300">${formatUSD(keep)}</td><td class="text-right pr-2 font-semibold text-slate-100">${formatUSD(bal)}</td></tr>`);
                 if (i % info.n === 0) {
                     const y = i / info.n;
-                    rows.push(`<tr class="bg-slate-900/80"><td colspan="6" class="py-1.5 px-2 text-[11px] font-semibold text-purple-300">End of Year ${y} · invested ${formatUSD(bal)} · pulled so far ${formatUSD(pulled)} · total ${formatUSD(bal + pulled)}</td></tr>`);
+                    rows.push(`<tr class="bg-slate-900/80"><td colspan="6" class="py-1.5 px-2 text-[0.75rem] font-semibold text-purple-300">End of Year ${y} · invested ${formatUSD(bal)} · pulled so far ${formatUSD(pulled)} · total ${formatUSD(bal + pulled)}</td></tr>`);
                 }
             }
             document.getElementById('periodRows').innerHTML = rows.join('');
@@ -624,16 +629,16 @@
                         <span class="text-xs text-emerald-400 font-semibold">${(t.ror * 100).toFixed(1)}% on risk</span>
                     </div>
                     <div class="text-sm font-semibold text-slate-100 mt-1 leading-snug">${legs}</div>
-                    <div class="grid grid-cols-3 gap-x-2 gap-y-1 text-[11px] mt-2 tabular-nums">
+                    <div class="grid grid-cols-3 gap-x-2 gap-y-1 text-[0.75rem] mt-2 tabular-nums">
                         <div><span class="text-slate-500">Credit</span><br>$${fmt2(t.credit)}</div>
                         <div><span class="text-slate-500">Max loss</span><br>$${fmt2(w - t.credit)}</div>
                         <div><span class="text-slate-500">Short Δ</span><br>${fmt2(Math.abs(t.delta))}</div>
                         <div><span class="text-slate-500">Breakeven</span><br>${t.be.map(fmt2).join(' / ')}</div>
                         <div><span class="text-slate-500">Prob. profit</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(t.pop * 100)}%</span></div>
-                        <div><span class="text-slate-500">Win rate needed</span><br>${Math.round(beWin * 100)}%</div>
+                        <div><span class="text-slate-500">Win rate req.</span><br>${Math.round(beWin * 100)}%</div>
                     </div>
-                    <div class="text-[11px] text-slate-400 mt-2">${sizeLine}</div>
-                    <div class="text-[11px] text-slate-500 mt-1">One full loss wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
+                    <div class="text-[0.75rem] text-slate-400 mt-2">${sizeLine}</div>
+                    <div class="text-[0.75rem] text-slate-500 mt-1">One full loss wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
                 </div>`;
         }
 
@@ -644,26 +649,26 @@
                 box.innerHTML = `
                 <details class="sec" data-remember="trades-${containerId}">
                     <summary class="row-sum">
-                        <span class="row-title">Trade ideas <span class="font-semibold text-slate-500 text-[13px]">QQQ, SPY</span></span>
+                        <span class="row-title">Trade ideas</span>
                         <span class="flex items-center gap-2"><span data-role="sumtag" class="row-tag"></span><span class="chev">›</span></span>
                     </summary>
-                <div class="px-[18px] pb-4 space-y-3">
+                <div class="px-[20px] pb-4 space-y-3">
                     <div class="flex justify-end">
                         <div class="flex gap-2">
-                        <label class="text-[11px] text-slate-400">Δ
+                        <label class="text-[0.75rem] text-slate-400">Δ
                             <select data-role="delta" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
                                 ${[0.10, 0.16, 0.20, 0.25, 0.30].map(d => `<option value="${d}" ${d === tradeDelta ? 'selected' : ''}>${d.toFixed(2)}</option>`).join('')}
                             </select></label>
-                        <label class="text-[11px] text-slate-400">Width
+                        <label class="text-[0.75rem] text-slate-400">Width
                             <select data-role="width" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
                                 ${[1, 2, 5, 10].map(w => `<option value="${w}" ${w === tradeWidth ? 'selected' : ''}>$${w}</option>`).join('')}
                             </select></label>
                         </div>
                     </div>
                     <div data-role="head" class="text-sm text-slate-300"></div>
-                    <div data-role="source" class="text-[11px]"></div>
+                    <div data-role="source" class="text-[0.75rem]"></div>
                     <details data-role="mktbox" class="sec text-xs">
-                        <summary class="text-[12px] text-slate-400 font-semibold"><span class="chev mr-1" style="font-size:15px">›</span>Market inputs, used when there's no live data</summary>
+                        <summary class="text-[0.8rem] text-slate-400 font-semibold"><span class="chev mr-1" style="font-size:15px">›</span>Market inputs, used when there's no live data</summary>
                         <div class="grid grid-cols-2 gap-2 mt-2">
                             ${TRADE_TICKERS.map(tk => `
                             <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-700/50 space-y-1">
@@ -672,11 +677,11 @@
                                 <label class="flex justify-between items-center text-slate-400">IV %<input data-mkt="${tk}.iv" type="number" inputmode="decimal" step="0.5" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 text-right text-slate-100"></label>
                             </div>`).join('')}
                         </div>
-                        <div class="text-[11px] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
+                        <div class="text-[0.75rem] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
                     </details>
                     <div data-role="results" class="space-y-3"></div>
-                    <details class="sec text-[10px] text-slate-500 leading-snug" data-remember="trades-help">
-                        <summary class="text-[12px] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
+                    <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
+                        <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
                         <div class="mt-1">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On risk" is the return if the spread expires worthless; prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
@@ -772,11 +777,13 @@
         (() => {
             const bar = document.getElementById('topbar');
             const sentinel = document.getElementById('topSentinel');
-            if ('IntersectionObserver' in window) {
-                new IntersectionObserver(([e]) => bar.classList.toggle('stuck', !e.isIntersecting)).observe(sentinel);
-            } else {
-                window.addEventListener('scroll', () => bar.classList.toggle('stuck', window.scrollY > 4), { passive: true });
-            }
+            // Hysteresis so the shrinking header can't make it flicker on and off
+            const onScroll = () => {
+                const y = window.scrollY;
+                if (!bar.classList.contains('stuck') && y > 60) bar.classList.add('stuck');
+                else if (bar.classList.contains('stuck') && y < 8) bar.classList.remove('stuck');
+            };
+            window.addEventListener('scroll', onScroll, { passive: true });
         })();
 
         // ===================== TABS =====================
@@ -792,6 +799,8 @@
             document.getElementById('tabPlan').className = tab === 'plan' ? on : off;
             document.getElementById('viewAlloc').classList.toggle('hidden', tab !== 'alloc');
             document.getElementById('viewPlan').classList.toggle('hidden', tab !== 'plan');
+            document.getElementById('heroAllocWrap').style.display = tab === 'alloc' ? '' : 'none';
+            document.getElementById('heroPlanWrap').style.display = tab === 'plan' ? '' : 'none';
             if (tab === 'plan') renderPlan();
             updateTopSummary();
             window.scrollTo(0, 0);
@@ -888,7 +897,7 @@
                     const hot = pct > 25 ? 'text-rose-400' : 'text-emerald-400';
                     return `<td class="p-1"><button onclick="selectPlanCell('${pk}','${mk}')" class="w-full py-2 rounded-lg border ${planSel === id ? 'bg-blue-900/50 border-blue-500' : 'bg-slate-900/70 border-slate-700/50'} hover:border-blue-500 active:bg-slate-700">
                         <div class="text-base font-bold ${hot}">${pct < 10 ? pct.toFixed(2) : pct.toFixed(1)}%</div>
-                        <div class="text-[10px] text-slate-500 h-3">${annualTxt}</div></button></td>`;
+                        <div class="text-[0.68rem] text-slate-500 h-3">${annualTxt}</div></button></td>`;
                 }).join('');
                 return `<tr><th class="text-left text-xs font-semibold text-slate-300 pr-1">${{weekly:'Weekly',biweekly:'Biweekly',monthly:'Monthly'}[pk]}</th>${cells}</tr>`;
             }).join('');
