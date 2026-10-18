@@ -82,11 +82,12 @@
 
         /* Hero result, pinned with the header; shrinks once you scroll */
         .hero { padding-top: 14px; }
-        .hero-val { font-size: 50px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: var(--mint); transition: font-size .2s; }
+        .hero-val { font-size: 64px; line-height: 1.02; font-weight: 800; letter-spacing: -0.04em; white-space: nowrap;
+                    color: #3DF5A6; text-shadow: 0 0 28px rgba(61,245,166,.28); }
         .hero-sub { margin-top: 8px; font-size: 16px; line-height: 1.4; color: var(--muted); }
         .hero-sub b { color: var(--text); font-weight: 700; }
         #topbar.stuck .hero { padding-top: 8px; }
-        #topbar.stuck .hero-val { font-size: 36px; }
+
         #topbar.stuck .hero-sub { font-size: 14px; margin-top: 4px; }
 
         /* Grouped list of collapsible results */
@@ -111,6 +112,7 @@
         #topbar { padding-top: calc(env(safe-area-inset-top) + 8px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
         #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 8px); }
         .tab-btn { padding: 7px 14px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--muted); }
+        @media (max-width: 380px) { .tab-btn { padding: 7px 10px; font-size: 14px; } }
         .tab-btn.on { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px #4A4363; }
 
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -311,7 +313,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.9</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.10</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -437,7 +439,12 @@
                 : `${+ratePct.toFixed(2)}% every period: ${pullPct}% of the gain pulled out, ${100 - pullPct}% reinvested, so the balance grows ${+effRate.toFixed(3)}% per period (≈ ${+growAnnual.toFixed(1)}% / yr) and the payout grows with it.`;
             if (tradesReady) renderTrades('calcTrades', period, ratePct, P, '');
             const modeWord = { compound: 'compounded', simple: 'simple, gains pulled out', split: `split, ${pullPct}% pulled` }[calcMode];
-            document.getElementById('heroVal').textContent = formatUSD(total);
+            // Astronomical results get a short form so the hero stays readable
+            document.getElementById('heroVal').textContent = total >= 1e15
+                ? '$' + total.toExponential(2).replace('e+', '×10^')
+                : total >= 1e10 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 }).format(total)
+                : formatUSD(total);
+            if (typeof fitHeroes === 'function') fitHeroes();
             document.getElementById('heroSub').innerHTML =
                 `From <b>${formatUSD(P)}</b> in ${t} ${t === 1 ? 'year' : 'years'} at <b>${+ratePct.toFixed(2)}%</b> every ${EVERY[period]}, ${modeWord}.`;
             calcSummary = `<b class="text-emerald-400">${formatUSD(total)}</b> <span class="text-slate-500">from</span> ${formatUSD(P)}, ${+ratePct.toFixed(2)}% per ${EVERY[period]}, ${t}y`;
@@ -789,11 +796,26 @@
             // Hysteresis so the shrinking header can't make it flicker on and off
             const onScroll = () => {
                 const y = window.scrollY;
-                if (!bar.classList.contains('stuck') && y > 60) bar.classList.add('stuck');
-                else if (bar.classList.contains('stuck') && y < 8) bar.classList.remove('stuck');
+                if (!bar.classList.contains('stuck') && y > 60) { bar.classList.add('stuck'); fitHeroes(); }
+                else if (bar.classList.contains('stuck') && y < 8) { bar.classList.remove('stuck'); fitHeroes(); }
             };
             window.addEventListener('scroll', onScroll, { passive: true });
         })();
+
+        // Size the big result to fill its line without ever spilling past the card edge
+        function fitHeroes() {
+            const stuck = document.getElementById('topbar').classList.contains('stuck');
+            const max = stuck ? 42 : 64, min = 26;
+            ['heroVal', 'heroPlanVal'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el || !el.offsetParent) return;
+                el.style.fontSize = max + 'px';
+                const avail = el.clientWidth, need = el.scrollWidth;
+                if (need > avail) el.style.fontSize = Math.max(min, Math.floor(max * avail / need) - 1) + 'px';
+            });
+        }
+        window.addEventListener('resize', fitHeroes);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeroes);
 
         // ===================== TABS =====================
         function updateTopSummary() {
@@ -810,6 +832,7 @@
             document.getElementById('viewPlan').classList.toggle('hidden', tab !== 'plan');
             document.getElementById('heroAllocWrap').style.display = tab === 'alloc' ? '' : 'none';
             document.getElementById('heroPlanWrap').style.display = tab === 'plan' ? '' : 'none';
+            fitHeroes();
             if (tab === 'plan') renderPlan();
             updateTopSummary();
             window.scrollTo(0, 0);
@@ -919,6 +942,7 @@
                 : `<b class="text-emerald-400">${selPct}%</b> per ${EVERY[spk]}, ${smWord}, to reach ${formatUSD(target)} in ${t}y`;
             document.getElementById('planTag').textContent = selPct == null ? '' : `${selPct}% per ${EVERY[spk]}`;
             document.getElementById('heroPlanVal').textContent = selPct == null ? 'Out of reach' : `${selPct}%`;
+            fitHeroes();
             document.getElementById('heroPlanSub').innerHTML = selPct == null
                 ? `No return under 100% per period gets <b>${formatUSD(P)}</b> to <b>${formatUSD(target)}</b> in ${t} ${t === 1 ? 'year' : 'years'}.`
                 : `Needed every ${EVERY[spk]}, ${smWord}, to turn <b>${formatUSD(P)}</b> into <b>${formatUSD(target)}</b> in ${t} ${t === 1 ? 'year' : 'years'}.`;
