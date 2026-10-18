@@ -20,6 +20,9 @@
         input[type=range] { width: 100%; accent-color: #2563eb; }
         input, select, textarea { -webkit-user-select: text; user-select: text; }
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+        /* Sticky header: when pinned, iOS can draw the page under the status bar, so pad for it */
+        #topbar { padding-top: calc(env(safe-area-inset-top) + 20px); transition: padding-top .15s; }
+        #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 14px); box-shadow: 0 6px 16px rgba(0,0,0,.35); }
         details.sec > summary { list-style: none; cursor: pointer; }
         details.sec > summary::-webkit-details-marker { display: none; }
         details.sec > summary .chev { transition: transform .15s; display: inline-block; }
@@ -29,8 +32,9 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen px-4 pb-16 font-sans select-none">
 
     <div class="max-w-md mx-auto space-y-4">
+        <div id="topSentinel" style="height:1px;margin-bottom:-1px"></div>
         <!-- Sticky header: title, tabs, live summary -->
-        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-5 pb-3 mb-2 bg-slate-900/95 backdrop-blur border-b border-slate-800" style="padding-top: calc(env(safe-area-inset-top) + 20px)">
+        <div id="topbar" class="sticky top-0 z-30 -mx-4 px-5 pb-3 mb-2 bg-slate-900/95 backdrop-blur border-b border-slate-800">
             <div class="flex items-center justify-between gap-3">
                 <h1 class="text-sm font-bold tracking-tight text-white truncate min-w-0">Allocation &amp; Compounder</h1>
                 <div class="flex shrink-0 gap-0.5 p-0.5 bg-slate-800 rounded-lg border border-slate-700 text-xs font-semibold">
@@ -232,6 +236,8 @@
         <div id="planTrades"></div>
         </div>
     </div>
+
+    <div class="text-center text-[10px] text-slate-600 mt-8">build 2026-10-18.5</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -687,6 +693,17 @@
             .catch(() => {});
         tradesReady = true;
         render();
+
+        // Mark the header as pinned once the page scrolls past its resting spot
+        (() => {
+            const bar = document.getElementById('topbar');
+            const sentinel = document.getElementById('topSentinel');
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver(([e]) => bar.classList.toggle('stuck', !e.isIntersecting)).observe(sentinel);
+            } else {
+                window.addEventListener('scroll', () => bar.classList.toggle('stuck', window.scrollY > 4), { passive: true });
+            }
+        })();
 
         // ===================== TABS =====================
         function updateTopSummary() {
