@@ -338,7 +338,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-19.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-19.2</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -660,19 +660,28 @@
             const beWin = maxLoss / (maxLoss + maxProfit);
             const edgeOk = t.pop >= beWin;
             const lossPeriods = maxLoss / maxProfit;
+            // Everything below is measured against the allocation (capital), not the margin at risk
+            const collect = contracts * maxProfit, atRisk = contracts * maxLoss;
+            const allocRet = capital > 0 ? collect / capital : 0;
+            const allocLoss = capital > 0 ? atRisk / capital : 0;
+            const pctTxt = x => (x * 100).toFixed(1) + '%';
             const sizeLine = contracts < 1
                 ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(maxLoss / frac)}).</span>`
-                : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} · ${formatUSD(contracts * maxLoss)} at risk${frac < 0.999 ? ` (${Math.round(frac * 100)}% of capital)` : ''} · collects ${formatUSD(contracts * maxProfit)}`;
+                : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} on ${formatUSD(capital)} · ${formatUSD(capital - atRisk)} stays in cash`;
             return `
                 <div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50">
                     <div class="flex justify-between items-baseline">
                         <span class="text-xs font-bold ${t.kind === 'bullput' ? 'text-sky-300' : 'text-fuchsia-300'}">${t.kind === 'bullput' ? 'Bull Put Spread' : 'Iron Condor'}</span>
-                        <span class="text-xs text-emerald-400 font-semibold">${(t.ror * 100).toFixed(1)}% on risk</span>
+                        <span class="text-right leading-tight"><span class="block text-sm text-emerald-400 font-bold">${contracts < 1 ? '—' : '+' + pctTxt(allocRet)} on allocation</span><span class="block text-[0.68rem] text-slate-500">${(t.ror * 100).toFixed(1)}% on margin</span></span>
                     </div>
                     <div class="text-sm font-semibold text-slate-100 mt-1 leading-snug">${legs}</div>
+                    ${contracts < 1 ? '' : `<div class="grid grid-cols-2 gap-2 mt-2 text-center">
+                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">If it expires OTM</div><div class="text-sm font-bold text-emerald-400">+${formatUSD(collect)} <span class="font-semibold">(${pctTxt(allocRet)})</span></div></div>
+                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">Max loss</div><div class="text-sm font-bold text-rose-400">−${formatUSD(atRisk)} <span class="font-semibold">(${pctTxt(allocLoss)})</span></div></div>
+                    </div>`}
                     <div class="grid grid-cols-3 gap-x-2 gap-y-1 text-[0.75rem] mt-2 tabular-nums">
-                        <div><span class="text-slate-500">Credit</span><br>$${fmt2(t.credit)}</div>
-                        <div><span class="text-slate-500">Max loss</span><br>$${fmt2(w - t.credit)}</div>
+                        <div><span class="text-slate-500">Credit / sh</span><br>$${fmt2(t.credit)}</div>
+                        <div><span class="text-slate-500">Max loss / sh</span><br>$${fmt2(w - t.credit)}</div>
                         <div><span class="text-slate-500">Short Δ</span><br>${fmt2(Math.abs(t.delta))}</div>
                         <div><span class="text-slate-500">Breakeven</span><br>${t.be.map(fmt2).join(' / ')}</div>
                         <div><span class="text-slate-500">Prob. profit</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(t.pop * 100)}%</span></div>
@@ -723,7 +732,7 @@
                     <div data-role="results" class="space-y-3"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
-                        <div class="mt-1">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On risk" is the return if the spread expires worthless; prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                        <div class="mt-1">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
                 </details>`;
