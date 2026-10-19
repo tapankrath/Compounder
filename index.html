@@ -338,7 +338,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-18.13</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-19.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -768,10 +768,11 @@
             if (LIVE && LIVE.updated) {
                 const ageH = (Date.now() - new Date(LIVE.updated)) / 3600000;
                 const when = new Date(LIVE.updated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-                src.innerHTML = `<span class="${ageH > 72 ? 'text-amber-400' : 'text-emerald-400'}">● Live chain (yfinance), updated ${when}</span>${ageH > 72 ? ' · data is over 3 days old' : ''}`;
+                src.innerHTML = `<span class="${ageH > 72 ? 'text-amber-400' : 'text-emerald-400'}">● Live chain (${[...new Set(Object.values(LIVE.tickers).map(t => t.source || 'Yahoo'))].join(' / ')}, 15-min delayed), updated ${when}</span>${ageH > 72 ? ' · data is over 3 days old' : ''}`;
                 box.querySelector('[data-role=mktbox]').style.display = 'none';
             } else {
-                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no options.json found, so strikes and credits are modeled from the price and IV below.</span>`;
+                box.querySelector('[data-role=mktbox]').style.display = '';
+                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes yet (options.json missing in the repo), so strikes and credits are modeled from the price and IV below.</span>`;
             }
 
             if (ratePctIn == null) { head.innerHTML = 'Target not reachable at this period length.'; res.innerHTML = ''; return; }
@@ -807,10 +808,27 @@
             });
         }
 
-        fetch('options.json', { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null)
-            .then(j => { if (j && j.tickers) { LIVE = j; rerenderAllTrades(); } })
-            .catch(() => {});
+        // Load quotes from the site copy and, on GitHub Pages, straight from the repo
+        // (the repo copy is fresh within minutes; the site copy waits for a Pages rebuild). Newest wins.
+        function loadQuotes() {
+            const urls = ['options.json'];
+            const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+            if (m) {
+                const seg = location.pathname.split('/').filter(Boolean)[0];
+                const repo = seg && !seg.includes('.') ? seg : m[1] + '.github.io';
+                urls.push(`https://raw.githubusercontent.com/${m[1]}/${repo}/main/options.json`);
+            }
+            Promise.all(urls.map(u => fetch(u + '?t=' + Date.now(), { cache: 'no-store' })
+                .then(r => r.ok ? r.json() : null).catch(() => null)))
+                .then(list => {
+                    const best = list.filter(j => j && j.tickers && j.updated)
+                        .sort((a, b) => new Date(b.updated) - new Date(a.updated))[0];
+                    if (best && (!LIVE || new Date(best.updated) > new Date(LIVE.updated))) { LIVE = best; rerenderAllTrades(); }
+                });
+        }
+        loadQuotes();
+        setInterval(loadQuotes, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadQuotes(); });
         tradesReady = true;
         render();
 
