@@ -338,7 +338,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-19.2</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-20.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -777,11 +777,11 @@
             if (LIVE && LIVE.updated) {
                 const ageH = (Date.now() - new Date(LIVE.updated)) / 3600000;
                 const when = new Date(LIVE.updated).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-                src.innerHTML = `<span class="${ageH > 72 ? 'text-amber-400' : 'text-emerald-400'}">● Live chain (${[...new Set(Object.values(LIVE.tickers).map(t => t.source || 'Yahoo'))].join(' / ')}, 15-min delayed), updated ${when}</span>${ageH > 72 ? ' · data is over 3 days old' : ''}`;
+                src.innerHTML = `<span class="${ageH > 72 ? 'text-amber-400' : 'text-emerald-400'}">● Live chain (${[...new Set(Object.values(LIVE.tickers).map(t => t.source || 'Yahoo'))].join(' / ')}, 15-min delayed), updated ${when}</span>${ageH > 72 ? ' · data is over 3 days old' : ''}` + refreshUI();
                 box.querySelector('[data-role=mktbox]').style.display = 'none';
             } else {
                 box.querySelector('[data-role=mktbox]').style.display = '';
-                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes yet (options.json missing in the repo), so strikes and credits are modeled from the price and IV below.</span>`;
+                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes yet (options.json missing in the repo), so strikes and credits are modeled from the price and IV below.</span>` + refreshUI();
             }
 
             if (ratePctIn == null) { head.innerHTML = 'Target not reachable at this period length.'; res.innerHTML = ''; return; }
@@ -819,22 +819,105 @@
 
         // Load quotes from the site copy and, on GitHub Pages, straight from the repo
         // (the repo copy is fresh within minutes; the site copy waits for a Pages rebuild). Newest wins.
+        // ----- Where the repo lives (owner/repo), from the GitHub Pages address -----
+        const REPO = (() => {
+            const m = location.hostname.match(/^([^.]+)\.github\.io$/i);
+            if (!m) return { owner: 'tapankrath', repo: 'Compounder' };
+            const seg = location.pathname.split('/').filter(Boolean)[0];
+            return { owner: m[1], repo: seg && !seg.includes('.') ? decodeURIComponent(seg) : m[1] + '.github.io' };
+        })();
+        const GH_API = `https://api.github.com/repos/${REPO.owner}/${REPO.repo}`;
+        const WORKFLOW_FILE = 'update-options.yml';
+        let ghToken = '';
+        try { ghToken = localStorage.getItem('ghToken') || ''; } catch (e) {}
+        const ghHeaders = () => ({ 'Authorization': 'Bearer ' + ghToken, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
+
+        // Load quotes from the site copy, the repo copy (fresh within minutes) and, with a key, the API (instant). Newest wins.
         function loadQuotes() {
-            const urls = ['options.json'];
-            const m = location.hostname.match(/^([^.]+)\.github\.io$/);
-            if (m) {
-                const seg = location.pathname.split('/').filter(Boolean)[0];
-                const repo = seg && !seg.includes('.') ? seg : m[1] + '.github.io';
-                urls.push(`https://raw.githubusercontent.com/${m[1]}/${repo}/main/options.json`);
-            }
-            Promise.all(urls.map(u => fetch(u + '?t=' + Date.now(), { cache: 'no-store' })
-                .then(r => r.ok ? r.json() : null).catch(() => null)))
+            const reqs = [fetch('options.json?t=' + Date.now(), { cache: 'no-store' })];
+            if (/\.github\.io$/i.test(location.hostname))
+                reqs.push(fetch(`https://raw.githubusercontent.com/${REPO.owner}/${REPO.repo}/main/options.json?t=${Date.now()}`, { cache: 'no-store' }));
+            if (ghToken)
+                reqs.push(fetch(`${GH_API}/contents/options.json?ref=main&t=${Date.now()}`, { cache: 'no-store', headers: Object.assign(ghHeaders(), { 'Accept': 'application/vnd.github.raw' }) }));
+            return Promise.all(reqs.map(p => p.then(r => r.ok ? r.json() : null).catch(() => null)))
                 .then(list => {
                     const best = list.filter(j => j && j.tickers && j.updated)
                         .sort((a, b) => new Date(b.updated) - new Date(a.updated))[0];
                     if (best && (!LIVE || new Date(best.updated) > new Date(LIVE.updated))) { LIVE = best; rerenderAllTrades(); }
+                    return best;
                 });
         }
+
+        // ----- Refresh button: start the GitHub job, wait for it, then load the new quotes -----
+        let refresh = { busy: false, msg: '', bad: false, askKey: false };
+        function refreshUI() {
+            const btn = `<button onclick="refreshQuotes()" ${refresh.busy ? 'disabled' : ''} class="ml-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-600 text-[0.75rem] font-bold text-slate-200 ${refresh.busy ? 'opacity-60' : ''}">
+                <span class="${refresh.busy ? 'animate-spin' : ''} inline-block">↻</span> ${refresh.busy ? 'Refreshing' : 'Refresh'}</button>`;
+            const msg = refresh.msg ? `<div class="mt-1.5 text-[0.75rem] ${refresh.bad ? 'text-rose-400' : 'text-slate-400'}">${refresh.msg}</div>` : '';
+            const keyBox = !refresh.askKey ? '' : `
+                <div class="mt-2 p-3 rounded-lg bg-slate-900 border border-slate-700 space-y-2 text-[0.75rem] text-slate-400">
+                    <div class="text-slate-200 font-bold text-sm">Connect GitHub once</div>
+                    <div>Refresh starts the quote job in <b class="text-slate-200">${REPO.owner}/${REPO.repo}</b>, which needs a GitHub key. Create one at
+                        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" class="underline text-blue-400">github.com → Settings → Developer settings → Fine-grained tokens</a>:
+                        Repository access <b>Only select repositories → ${REPO.repo}</b>; Permissions <b>Actions: Read and write</b> and <b>Contents: Read-only</b>.</div>
+                    <input class="gh-token-in w-full" type="password" aria-label="GitHub key" autocomplete="off" placeholder="github_pat_…" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-slate-100 text-sm">
+                    <div class="flex gap-2">
+                        <button onclick="saveGhToken()" class="px-3 py-1.5 rounded-lg bg-blue-500 text-white font-bold">Save and refresh</button>
+                        <button onclick="refresh.askKey=false;refresh.msg='';rerenderAllTrades()" class="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300">Cancel</button>
+                    </div>
+                    <div>The key stays on this phone only.</div>
+                </div>`;
+            return btn + msg + keyBox;
+        }
+        function setRefresh(p) { Object.assign(refresh, p); rerenderAllTrades(); }
+        function saveGhToken() {
+            const v = [...document.querySelectorAll('.gh-token-in')].map(i => i.value).find(x => x && x.trim()) || '';
+            if (!v.trim()) { setRefresh({ msg: 'Paste your GitHub key first.', bad: true }); return; }
+            ghToken = v.trim();
+            try { localStorage.setItem('ghToken', ghToken); } catch (e) {}
+            setRefresh({ askKey: false, msg: '', bad: false });
+            refreshQuotes();
+        }
+        function forgetGhToken() {
+            ghToken = ''; try { localStorage.removeItem('ghToken'); } catch (e) {}
+        }
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        async function refreshQuotes() {
+            if (refresh.busy) return;
+            if (!ghToken) { setRefresh({ askKey: true, msg: '', bad: false }); return; }
+            const started = Date.now();
+            setRefresh({ busy: true, bad: false, msg: 'Starting the quote job on GitHub…' });
+            try {
+                const r = await fetch(`${GH_API}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
+                    method: 'POST', headers: ghHeaders(), body: JSON.stringify({ ref: 'main' }) });
+                if (r.status === 401) { forgetGhToken(); return setRefresh({ busy: false, askKey: true, bad: true, msg: 'GitHub rejected that key (expired or mistyped). Enter a new one.' }); }
+                if (r.status === 403 || r.status === 404) { forgetGhToken(); return setRefresh({ busy: false, askKey: true, bad: true, msg: `That key can't run jobs in ${REPO.repo}. Give it Actions: Read and write on this repo.` }); }
+                if (!r.ok) return setRefresh({ busy: false, bad: true, msg: `GitHub said ${r.status}. Try again in a minute.` });
+
+                // Find the run we just started and wait for it (usually about 30 seconds)
+                let run = null;
+                for (let i = 0; i < 40; i++) {
+                    await sleep(i < 3 ? 3000 : 5000);
+                    const lr = await fetch(`${GH_API}/actions/workflows/${WORKFLOW_FILE}/runs?event=workflow_dispatch&per_page=5&t=${Date.now()}`, { headers: ghHeaders(), cache: 'no-store' });
+                    const runs = lr.ok ? (await lr.json()).workflow_runs || [] : [];
+                    run = runs.find(x => new Date(x.created_at).getTime() >= started - 15000) || run;
+                    const secs = Math.round((Date.now() - started) / 1000);
+                    if (!run) { setRefresh({ msg: `Waiting for GitHub to start the job… ${secs}s` }); continue; }
+                    if (run.status !== 'completed') { setRefresh({ msg: `Fetching fresh quotes… ${secs}s` }); continue; }
+                    break;
+                }
+                if (!run || run.status !== 'completed') return setRefresh({ busy: false, bad: true, msg: 'The job is taking longer than usual. Quotes will load on their own when it finishes.' });
+                if (run.conclusion !== 'success') return setRefresh({ busy: false, bad: true, msg: `The job ${run.conclusion}. <a href="${run.html_url}" target="_blank" rel="noopener" class="underline">See what happened</a>.` });
+                setRefresh({ msg: 'Loading the new quotes…' });
+                const before = LIVE && LIVE.updated;
+                const got = await loadQuotes();
+                const when = got ? new Date(got.updated).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+                setRefresh({ busy: false, bad: false, msg: got && got.updated !== before ? `Updated with quotes from ${when}.` : `Quotes are already current (${when}).` });
+            } catch (e) {
+                setRefresh({ busy: false, bad: true, msg: 'Couldn\'t reach GitHub. Check your connection and try again.' });
+            }
+        }
+
         loadQuotes();
         setInterval(loadQuotes, 5 * 60 * 1000);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) loadQuotes(); });
