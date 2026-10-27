@@ -253,6 +253,52 @@
 
             <div id="calcTrades"></div>
 
+            <details class="sec" data-remember="actuals">
+                <summary class="row-sum">
+                    <span class="row-title">Actuals</span>
+                    <span class="flex items-center gap-2"><span id="actTag" class="row-tag"></span><span class="chev">›</span></span>
+                </summary>
+                <div class="px-[20px] pb-4 space-y-3">
+                    <div id="actSummary"></div>
+                    <label class="flex items-center gap-2 text-sm font-semibold text-slate-300 cursor-pointer">
+                        <input type="checkbox" id="actUse" class="w-4 h-4" checked> Adjust the projection with my results
+                    </label>
+                    <div class="field-head">
+                        <span class="text-sm font-semibold text-slate-400">Plan started</span>
+                        <input type="date" id="actStart" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-sm text-slate-100">
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-700 space-y-2.5">
+                        <div id="actFormTitle" class="text-sm font-bold text-slate-200">Log a trade</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="text-[0.75rem] text-slate-400">Entered
+                                <input type="date" id="actIn" class="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100"></label>
+                            <label class="text-[0.75rem] text-slate-400">Exited <span class="text-slate-500">(blank = open)</span>
+                                <input type="date" id="actOut" class="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100"></label>
+                            <label class="text-[0.75rem] text-slate-400">Amount in
+                                <input type="text" inputmode="decimal" id="actAmt" placeholder="25,000" class="mt-0.5 w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100"></label>
+                            <label class="text-[0.75rem] text-slate-400">Result
+                                <span class="flex gap-1 mt-0.5">
+                                    <span class="seg shrink-0" style="padding:2px">
+                                        <button type="button" id="actWin" class="seg-btn on" style="padding:5px 8px;font-size:13px">+</button>
+                                        <button type="button" id="actLoss" class="seg-btn" style="padding:5px 8px;font-size:13px">−</button>
+                                    </span>
+                                    <input type="text" inputmode="decimal" id="actPl" placeholder="1,250" class="min-w-0 flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100">
+                                </span></label>
+                        </div>
+                        <input type="text" id="actNote" placeholder="QQQ 695/690 put spread" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-100" aria-label="Note">
+                        <div id="actErr" class="text-[0.75rem] text-rose-400"></div>
+                        <div class="flex gap-2">
+                            <button type="button" id="actSave" class="px-3 py-1.5 rounded-lg bg-blue-500 text-white text-sm font-bold">Save trade</button>
+                            <button type="button" id="actCancel" class="px-3 py-1.5 rounded-lg border border-slate-600 text-sm text-slate-300" hidden>Cancel edit</button>
+                        </div>
+                    </div>
+
+                    <div id="actList"></div>
+                    <div class="text-[0.72rem] text-slate-500 leading-relaxed">Profit or loss is counted in the period the trade was exited. Open trades aren't counted until you add an exit date. Your log is saved on this phone only.</div>
+                </div>
+            </details>
+
             <details class="sec" data-remember="periods">
                 <summary class="row-sum">
                     <span class="row-title">Period by period</span><span class="chev">›</span>
@@ -338,7 +384,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-20.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-26.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -430,17 +476,21 @@
                     (capHit > periods ? ' (beyond your horizon)' : '');
             }
 
+            // Actual results (if any) replace the modeled gain for periods that have happened
+            const A = typeof actualsReady !== 'undefined' ? actualsFor(period, periods) : { use: false, has: false, byP: {}, cur: 1, closed: [], open: [] };
+            const isAct = i => A.use && A.has && (i < A.cur || (i === A.cur && A.byP[i] !== undefined));
             // Walk period by period: gain on current balance, pull back part of it, reinvest the rest
-            let bal = P, pulled = 0;
+            let bal = P, pulled = 0, planTotal = 0;
             const rows = [];
             for (let i = 1; i <= periods; i++) {
-                const gain = bal * r;
+                const act = isAct(i);
+                const gain = act ? (A.byP[i] || 0) : bal * r;
                 const fi = pullAt(i);
-                const out = gain * fi;
+                const out = gain > 0 ? gain * fi : 0;      // losses are never "pulled", they hit the balance
                 const keep = gain - out;
                 bal += keep;
                 pulled += out;
-                rows.push(`<tr class="border-b border-slate-700/40"><td class="py-1 pl-2 text-slate-500">${info.short}${i}</td><td class="text-right text-emerald-400">${formatUSD(gain)}</td><td class="text-right text-slate-400">${+(fi * 100).toFixed(1)}%</td><td class="text-right text-amber-400">${formatUSD(out)}</td><td class="text-right text-slate-300">${formatUSD(keep)}</td><td class="text-right pr-2 font-semibold text-slate-100">${formatUSD(bal)}</td></tr>`);
+                rows.push(`<tr class="border-b border-slate-700/40 ${act ? 'bg-blue-900/40' : ''}"><td class="py-1 pl-2 whitespace-nowrap ${act ? 'text-blue-400 font-bold' : 'text-slate-500'}">${info.short}${i}${act ? ' ●' : ''}</td><td class="text-right ${gain < 0 ? 'text-rose-400' : 'text-emerald-400'}">${formatUSD(gain)}</td><td class="text-right text-slate-400">${+(fi * 100).toFixed(1)}%</td><td class="text-right text-amber-400">${formatUSD(out)}</td><td class="text-right text-slate-300">${formatUSD(keep)}</td><td class="text-right pr-2 font-semibold text-slate-100">${formatUSD(bal)}</td></tr>`);
                 if (i % info.n === 0) {
                     const y = i / info.n;
                     rows.push(`<tr class="bg-slate-900/80"><td colspan="6" class="py-1.5 px-2 text-[0.75rem] font-semibold text-purple-300">End of Year ${y} · invested ${formatUSD(bal)} · pulled so far ${formatUSD(pulled)} · total ${formatUSD(bal + pulled)}</td></tr>`);
@@ -449,6 +499,8 @@
             document.getElementById('periodRows').innerHTML = rows.join('');
 
             const total = bal + pulled;
+            const planEnd = simulateTotal(P, r, periods, pullAt);
+            if (typeof actualsReady !== 'undefined') renderActuals(A, { P, r, periods, pullAt, total, planEnd, info });
             document.getElementById('projectedVal').textContent = formatUSD(total);
             document.getElementById('endTag').textContent = `+${formatUSD(total - P)} gain`;
             document.getElementById('endBal').textContent = formatUSD(bal);
@@ -471,7 +523,8 @@
                 : formatUSD(total);
             if (typeof fitHeroes === 'function') fitHeroes();
             document.getElementById('heroSub').innerHTML =
-                `From <b>${formatUSD(P)}</b> in ${t} ${t === 1 ? 'year' : 'years'} at <b>${+ratePct.toFixed(2)}%</b> every ${EVERY[period]}, ${modeWord}.`;
+                `From <b>${formatUSD(P)}</b> in ${t} ${t === 1 ? 'year' : 'years'} at <b>${+ratePct.toFixed(2)}%</b> every ${EVERY[period]}, ${modeWord}.` +
+                (A.use && A.has ? ` With your actual results; plan alone was <b>${formatUSD(planEnd)}</b>.` : '');
             calcSummary = `<b class="text-emerald-400">${formatUSD(total)}</b> <span class="text-slate-500">from</span> ${formatUSD(P)}, ${+ratePct.toFixed(2)}% per ${EVERY[period]}, ${t}y`;
             paintRanges();
             if (typeof updateTopSummary === 'function') updateTopSummary();
@@ -493,6 +546,141 @@
         growOn.addEventListener('change', render);
         setCalcMode('compound');
         setPeriod('biweekly');
+        render();
+
+        // ===================== ACTUALS (trade log) =====================
+        let ACT = { start: '', use: true, trades: [] };
+        try { const a = JSON.parse(localStorage.getItem('actuals.v1') || 'null'); if (a && Array.isArray(a.trades)) ACT = Object.assign(ACT, a); } catch (e) {}
+        const saveACT = () => { try { localStorage.setItem('actuals.v1', JSON.stringify(ACT)); } catch (e) {} };
+        const isoToday = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+        const parseDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+        const fmtDay = s => parseDay(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const planStart = () => ACT.start || (ACT.trades.length ? ACT.trades.map(t => t.in).sort()[0] : isoToday());
+
+        // Which period (1-based) a date falls in, counted from the plan start
+        function periodOf(dateStr, pk) {
+            const a = parseDay(planStart()), b = parseDay(dateStr);
+            if (b < a) return 1;
+            if (pk === 'monthly') return (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth() - (b.getDate() < a.getDate() ? 1 : 0) + 1;
+            const days = Math.round((b - a) / 86400000);
+            return Math.floor(days / (pk === 'weekly' ? 7 : 14)) + 1;
+        }
+        function actualsFor(pk, periods) {
+            const closed = ACT.trades.filter(t => t.out);
+            const byP = {};
+            closed.forEach(t => { const i = periodOf(t.out, pk); byP[i] = (byP[i] || 0) + t.pl; });
+            const cur = Math.min(periodOf(isoToday(), pk), periods + 1);
+            return { use: ACT.use, has: closed.length > 0, byP, cur, closed, open: ACT.trades.filter(t => !t.out) };
+        }
+        // End total with actual periods fixed and rate x for the rest
+        function totalWithActuals(P, x, periods, pullAt, A) {
+            let bal = P, pulled = 0;
+            for (let i = 1; i <= periods; i++) {
+                const act = i < A.cur || (i === A.cur && A.byP[i] !== undefined);
+                const g = act ? (A.byP[i] || 0) : bal * x;
+                const out = g > 0 ? g * pullAt(i) : 0;
+                bal += g - out; pulled += out;
+            }
+            return bal + pulled;
+        }
+
+        function renderActuals(A, c) {
+            const n = A.closed.length, wins = A.closed.filter(t => t.pl > 0).length;
+            const realized = A.closed.reduce((s, t) => s + t.pl, 0);
+            const lastActual = Math.min(A.cur - (A.byP[A.cur] === undefined ? 1 : 0), c.periods);
+            const actualNow = totalWithActuals(c.P, 0, lastActual, c.pullAt, A);
+            const planNow = simulateTotal(c.P, c.r, lastActual, c.pullAt);
+            const diff = actualNow - planNow;
+            // Rate needed on the remaining periods to still finish on the original plan
+            let need = null;
+            const left = c.periods - lastActual;
+            if (n && left > 0) {
+                let lo = -0.5, hi = 1;
+                if (totalWithActuals(c.P, hi, c.periods, c.pullAt, A) >= c.planEnd) {
+                    for (let k = 0; k < 60; k++) { const m = (lo + hi) / 2; if (totalWithActuals(c.P, m, c.periods, c.pullAt, A) >= c.planEnd) hi = m; else lo = m; }
+                    need = hi;
+                }
+            }
+            const pct = x => (x * 100).toFixed(x !== 0 && Math.abs(x) < 0.1 ? 2 : 1) + '%';
+            const tile = (k, v, cls) => `<div class="py-2.5 px-2 rounded-xl bg-slate-900 text-center"><div class="text-[0.7rem] text-slate-400">${k}</div><div class="text-sm font-bold ${cls || 'text-slate-100'} mt-0.5">${v}</div></div>`;
+            document.getElementById('actTag').textContent = n ? `${realized >= 0 ? '+' : '−'}${formatUSD(Math.abs(realized))} · ${n} trade${n === 1 ? '' : 's'}` : (A.open.length ? `${A.open.length} open` : '');
+            document.getElementById('actSummary').innerHTML = !n
+                ? `<div class="text-sm text-slate-400">Log your first closed trade and the projection will start from your real balance instead of the model.</div>`
+                : `<div class="grid grid-cols-2 gap-2">
+                    ${tile('Realized P/L', `${realized >= 0 ? '+' : '−'}${formatUSD(Math.abs(realized))}`, realized >= 0 ? 'text-emerald-400' : 'text-rose-400')}
+                    ${tile('Won', `${wins} of ${n} (${Math.round(wins / n * 100)}%)`)}
+                    ${tile(`vs plan after ${c.info.short}${lastActual}`, `${diff >= 0 ? 'Ahead ' : 'Behind '}${formatUSD(Math.abs(diff))}`, diff >= 0 ? 'text-emerald-400' : 'text-rose-400')}
+                    ${tile('Needed from here', left <= 0 ? 'Plan finished' : need == null ? 'Over 100%' : `${pct(need)} / ${EVERY[period]}`, need != null && need > c.r + 1e-9 ? 'text-amber-400' : 'text-emerald-400')}
+                   </div>
+                   <div class="text-[0.75rem] text-slate-400 mt-2 leading-relaxed">Actual total now ${formatUSD(actualNow)} vs plan ${formatUSD(planNow)}. ${A.use ? `Projected end with your results: <b class="text-slate-100">${formatUSD(c.total)}</b> (plan ${formatUSD(c.planEnd)}).` : 'Turn on the switch below to project from your real balance.'} ${need != null && left > 0 ? `To still reach ${formatUSD(c.planEnd)}, you need ${pct(need)} per ${EVERY[period]} for the remaining ${left} periods.` : ''}</div>`;
+
+            const rows = ACT.trades.slice().sort((a, b) => (b.out || '9999') .localeCompare(a.out || '9999') || b.in.localeCompare(a.in));
+            document.getElementById('actList').innerHTML = !rows.length ? '' : `<div class="rounded-xl border border-slate-700 overflow-hidden">` + rows.map(t => {
+                const open = !t.out, r = t.amt > 0 ? t.pl / t.amt : 0;
+                return `<div class="px-3 py-2.5 border-b border-slate-700 last:border-b-0 ${editingId === t.id ? 'bg-blue-900/40' : ''}">
+                    <div class="flex justify-between items-baseline gap-2">
+                        <span class="text-sm font-semibold text-slate-100 truncate min-w-0">${esc(t.note || 'Trade')}</span>
+                        <span class="text-sm font-bold shrink-0 ${open ? 'text-amber-400' : t.pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${open ? 'Open' : `${t.pl >= 0 ? '+' : '−'}${formatUSD(Math.abs(t.pl))} <span class="font-semibold">(${t.pl >= 0 ? '+' : '−'}${(Math.abs(r) * 100).toFixed(1)}%)</span>`}</span>
+                    </div>
+                    <div class="flex justify-between items-center gap-2 mt-0.5 text-[0.75rem] text-slate-400">
+                        <span>${fmtDay(t.in)} → ${open ? 'open' : fmtDay(t.out)} · ${formatUSD(t.amt)} in${open ? '' : ` · ${PERIOD_INFO[period].short}${periodOf(t.out, period)}`}</span>
+                        <span class="flex gap-3 shrink-0">
+                            <button type="button" onclick="editTrade('${t.id}')" class="font-semibold text-blue-400">Edit</button>
+                            <button type="button" onclick="deleteTrade('${t.id}')" class="font-semibold ${pendingDelete === t.id ? 'text-rose-400' : 'text-slate-400'}">${pendingDelete === t.id ? 'Tap to confirm' : 'Delete'}</button>
+                        </span>
+                    </div>
+                </div>`;
+            }).join('') + `</div>`;
+        }
+
+        // ----- form -----
+        let editingId = null, pendingDelete = null, plSign = 1;
+        const aEl = id => document.getElementById(id);
+        const money = v => parseFloat(String(v).replace(/[^0-9.]/g, ''));
+        function setSign(sg) { plSign = sg; aEl('actWin').className = sg > 0 ? 'seg-btn on' : 'seg-btn'; aEl('actLoss').className = sg < 0 ? 'seg-btn on' : 'seg-btn'; }
+        function resetForm() {
+            editingId = null; aEl('actIn').value = isoToday(); aEl('actOut').value = ''; aEl('actAmt').value = ''; aEl('actPl').value = ''; aEl('actNote').value = '';
+            aEl('actErr').textContent = ''; aEl('actFormTitle').textContent = 'Log a trade'; aEl('actSave').textContent = 'Save trade'; aEl('actCancel').hidden = true; setSign(1);
+        }
+        function editTrade(id) {
+            const t = ACT.trades.find(x => x.id === id); if (!t) return;
+            editingId = id; pendingDelete = null;
+            aEl('actIn').value = t.in; aEl('actOut').value = t.out || ''; aEl('actAmt').value = Math.round(t.amt).toLocaleString('en-US');
+            aEl('actPl').value = t.out ? Math.abs(t.pl).toLocaleString('en-US') : ''; aEl('actNote').value = t.note || ''; setSign(t.pl < 0 ? -1 : 1);
+            aEl('actFormTitle').textContent = 'Edit trade'; aEl('actSave').textContent = 'Save changes'; aEl('actCancel').hidden = false; aEl('actErr').textContent = '';
+            render(); aEl('actFormTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        function deleteTrade(id) {
+            if (pendingDelete !== id) { pendingDelete = id; render(); setTimeout(() => { if (pendingDelete === id) { pendingDelete = null; render(); } }, 4000); return; }
+            ACT.trades = ACT.trades.filter(x => x.id !== id); pendingDelete = null;
+            if (editingId === id) resetForm();
+            saveACT(); render();
+        }
+        function saveTrade() {
+            const tin = aEl('actIn').value, tout = aEl('actOut').value, amt = money(aEl('actAmt').value), plRaw = aEl('actPl').value.trim();
+            const plAbs = plRaw === '' ? NaN : money(plRaw);
+            let err = '';
+            if (!tin) err = 'Enter the date you entered the trade.';
+            else if (!(amt > 0)) err = 'Enter how much you put in, like 25,000.';
+            else if (tout && tout < tin) err = 'Exit date is before the entry date.';
+            else if (tout && !isFinite(plAbs)) err = 'Enter the profit or loss, or clear the exit date if the trade is still open.';
+            if (err) { aEl('actErr').textContent = err; return; }
+            const rec = { id: editingId || Date.now().toString(36), in: tin, out: tout || '', amt, pl: tout ? plSign * plAbs : 0, note: aEl('actNote').value.trim() };
+            if (editingId) ACT.trades = ACT.trades.map(x => x.id === editingId ? rec : x); else ACT.trades.push(rec);
+            if (!ACT.start) ACT.start = planStart();
+            saveACT(); resetForm(); render();
+        }
+        aEl('actWin').addEventListener('click', () => setSign(1));
+        aEl('actLoss').addEventListener('click', () => setSign(-1));
+        aEl('actSave').addEventListener('click', saveTrade);
+        aEl('actCancel').addEventListener('click', () => { resetForm(); render(); });
+        aEl('actUse').checked = ACT.use;
+        aEl('actUse').addEventListener('change', () => { ACT.use = aEl('actUse').checked; saveACT(); render(); });
+        aEl('actStart').value = planStart();
+        aEl('actStart').addEventListener('change', () => { ACT.start = aEl('actStart').value; saveACT(); render(); });
+        var actualsReady = true;
+        resetForm();
         render();
 
         // ===================== COLLAPSIBLE SECTIONS =====================
