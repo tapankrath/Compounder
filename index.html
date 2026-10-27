@@ -153,8 +153,8 @@
             <div class="flex items-center justify-between gap-3">
                 <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
                 <div class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
-                    <button id="tabAlloc" class="tab-btn" onclick="showTab('alloc')">Calculator</button>
                     <button id="tabPlan" class="tab-btn" onclick="showTab('plan')">Planner</button>
+                    <button id="tabAlloc" class="tab-btn" onclick="showTab('alloc')">Calculator</button>
                 </div>
             </div>
             <div id="heroAllocWrap" class="hero">
@@ -384,7 +384,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-26.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-27.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1298,7 +1298,7 @@
             const v = parseMoney(pEl('pTarget').value);
             if (isFinite(v)) pEl('pTarget').value = Math.round(v).toLocaleString('en-US');
         });
-        showTab('alloc');
+        showTab('plan');
     </script>
 </body>
 </html>
