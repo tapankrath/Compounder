@@ -335,6 +335,26 @@
                 <input type="range" id="pYears" min="1" max="10" step="1" value="2" aria-label="Years">
             </div>
             <div class="field">
+                <div class="field-row">
+                    <span class="field-label">Every</span>
+                    <div class="seg">
+                        <button id="pPer_weekly" onclick="setPlanSel('weekly', null)">Week</button>
+                        <button id="pPer_biweekly" onclick="setPlanSel('biweekly', null)">2 weeks</button>
+                        <button id="pPer_monthly" onclick="setPlanSel('monthly', null)">Month</button>
+                    </div>
+                </div>
+            </div>
+            <div class="field">
+                <div class="field-row">
+                    <span class="field-label">Gains</span>
+                    <div class="seg">
+                        <button id="pMode_compound" onclick="setPlanSel(null, 'compound')" title="Reinvest all gains">Compound</button>
+                        <button id="pMode_simple" onclick="setPlanSel(null, 'simple')" title="Pull out all gains">Simple</button>
+                        <button id="pMode_split" onclick="setPlanSel(null, 'split')" title="Pull some gains back">Split</button>
+                    </div>
+                </div>
+            </div>
+            <div class="field" id="pSplitField">
                 <div class="field-head">
                     <span class="field-label">Split</span>
                     <span class="text-sm font-bold text-amber-400"><span id="pPullVal">25</span>% out, <span id="pKeepVal">75</span>% kept</span>
@@ -384,7 +404,7 @@
         </div>
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-27.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-31.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1194,8 +1214,15 @@
 
         function selectPlanCell(pk, mk) {
             planSel = pk + '_' + mk;
+            try { localStorage.setItem('planSel', planSel); } catch (e) {}
             renderPlan();
         }
+        // Every / Gains buttons: change one half of the selected grid cell
+        function setPlanSel(pk, mk) {
+            const [cp, cm] = planSel.split('_');
+            selectPlanCell(pk || cp, mk || cm);
+        }
+        try { const ps = localStorage.getItem('planSel'); if (/^(weekly|biweekly|monthly)_(compound|simple|split)$/.test(ps || '')) planSel = ps; } catch (e) {}
 
         function renderPlanTrades() {
             const [pk, mk] = planSel.split('_');
@@ -1214,6 +1241,10 @@
             const g = parseFloat(pEl('pGrow').value) / 100;
             const cap = Math.max(parseFloat(pEl('pPullCap').value) / 100, f);
 
+            const [selP, selM] = planSel.split('_');
+            Object.keys(PERIOD_INFO).forEach(k => pEl('pPer_' + k).className = k === selP ? 'seg-btn on' : 'seg-btn');
+            ['compound', 'simple', 'split'].forEach(k => pEl('pMode_' + k).className = k === selM ? 'seg-btn on' : 'seg-btn');
+            pEl('pSplitField').hidden = selM !== 'split';
             pEl('pCapVal').textContent = formatUSD(P);
             pEl('pYearsVal').textContent = `${t} ${t === 1 ? 'year' : 'years'}`;
             pEl('pPullVal').textContent = pEl('pPull').value;
