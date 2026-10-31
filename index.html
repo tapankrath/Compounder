@@ -342,7 +342,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-31.2</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-31.3</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -691,11 +691,11 @@
         const TRADE_TICKERS = ['QQQ', 'SPY'];
         let LIVE = null;                                    // options.json contents when available
         let tradeWidth = 5;
-        let tradeDelta = 0.20;                              // starting short-strike delta
+        let tradeRisk = 0.50;                               // most of the capital one trade may put at risk
         let mkt = { QQQ: { spot: '', iv: 18 }, SPY: { spot: '', iv: 15 } };
         try { const saved = JSON.parse(localStorage.getItem('mktInputs') || 'null'); if (saved) mkt = Object.assign(mkt, saved); } catch (e) {}
         try { const w = parseFloat(localStorage.getItem('tradeWidth')); if (w) tradeWidth = w; } catch (e) {}
-        try { const d = parseFloat(localStorage.getItem('tradeDelta')); if (d) tradeDelta = d; } catch (e) {}
+        try { const d = parseFloat(localStorage.getItem('tradeRisk')); if (d > 0 && d <= 1) tradeRisk = d; } catch (e) {}
 
         function ncdf(x) {
             const t = 1 / (1 + 0.2316419 * Math.abs(x));
@@ -776,18 +776,18 @@
             return { spot: S, T, dte: target, exp: null, live: false, puts, calls };
         }
 
-        // Bull put spread: start at the chosen short delta, move toward the money only if the
-        // return on risk is below r. Sizing later uses just enough capital to hit r.
-        function findBullPut(ch, w, r, d0) {
+        // Bull put spread: walk in from the furthest strike and take the first one whose return on margin
+        // reaches rNeed (= target / max share of capital at risk), so the target is met within the risk limit.
+        // Sizing later uses just enough capital to hit the target.
+        function findBullPut(ch, w, rNeed) {
             const ks = [...ch.puts.keys()].filter(k => k < ch.spot && ch.puts.has(k - w)).sort((a, b) => a - b);
-            const start = ks.findIndex(k => Math.abs(ch.puts.get(k).delta) >= d0 - 0.005);
-            if (start < 0) return null;
-            for (const k of ks.slice(start)) {
+            for (const k of ks) {
                 const sh = ch.puts.get(k), lg = ch.puts.get(k - w);
+                if (sh.quoted === false || Math.abs(sh.delta) < 0.02) continue;   // skip stale or near-zero quotes
                 const credit = sh.mid - lg.mid;
                 if (credit < MIN_CREDIT || credit >= w) continue;
                 const ror = credit / (w - credit);
-                if (ror < r) continue;
+                if (ror < rNeed) continue;
                 const be = k - credit;
                 return { kind: 'bullput', short: k, long: k - w, credit, ror, delta: sh.delta,
                          pop: probAbove(ch.spot, be, ch.T, sh.iv), be: [be] };
@@ -795,20 +795,20 @@
             return null;
         }
 
-        // Iron condor with similar delta on both sides, starting at the chosen delta
-        function findCondor(ch, w, r, d0) {
+        // Iron condor with similar delta on both sides: the furthest-out pair that reaches rNeed
+        function findCondor(ch, w, rNeed) {
             const pk = [...ch.puts.keys()].filter(k => k < ch.spot && ch.puts.has(k - w));
             const ck = [...ch.calls.keys()].filter(k => k > ch.spot && ch.calls.has(k + w));
             if (!pk.length || !ck.length) return null;
             const closest = (keys, m, d) => keys.reduce((b, k) => Math.abs(Math.abs(m.get(k).delta) - d) < Math.abs(Math.abs(m.get(b).delta) - d) ? k : b);
-            for (let d = d0; d <= 0.45; d += 0.01) {
+            for (let d = 0.03; d <= 0.45; d += 0.01) {
                 const kp = closest(pk, ch.puts, d), kc = closest(ck, ch.calls, d);
                 const pc = ch.puts.get(kp).mid - ch.puts.get(kp - w).mid;
                 const cc = ch.calls.get(kc).mid - ch.calls.get(kc + w).mid;
                 const credit = pc + cc;
                 if (pc <= 0 || cc <= 0 || credit < MIN_CREDIT || credit >= w) continue;
                 const ror = credit / (w - credit);
-                if (ror < r) continue;
+                if (ror < rNeed) continue;
                 const beL = kp - credit, beH = kc + credit;
                 const pop = probAbove(ch.spot, beL, ch.T, ch.puts.get(kp).iv) - probAbove(ch.spot, beH, ch.T, ch.calls.get(kc).iv);
                 return { kind: 'condor', putShort: kp, putLong: kp - w, callShort: kc, callLong: kc + w, credit, ror,
@@ -876,9 +876,9 @@
                 <div class="px-[20px] pb-4 space-y-3">
                     <div class="flex justify-end">
                         <div class="flex gap-2">
-                        <label class="text-[0.75rem] text-slate-400">Δ
-                            <select data-role="delta" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
-                                ${[0.10, 0.16, 0.20, 0.25, 0.30].map(d => `<option value="${d}" ${d === tradeDelta ? 'selected' : ''}>${d.toFixed(2)}</option>`).join('')}
+                        <label class="text-[0.75rem] text-slate-400">Max at risk
+                            <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
+                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}%</option>`).join('')}
                             </select></label>
                         <label class="text-[0.75rem] text-slate-400">Width
                             <select data-role="width" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
@@ -903,7 +903,7 @@
                     <div data-role="results" class="space-y-3"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
-                        <div class="mt-1">Δ sets the starting short strike (iron condors start at no more than 0.16 per side); it only moves closer to the money if that can't reach your target. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                        <div class="mt-1">Strikes start far from the price and move closer only until the spread earns your target while risking no more than your Max at risk share of capital. A lower limit means strikes closer to the price (fewer contracts, smaller worst case, lower chance of profit); a higher limit lets them sit further out (more contracts, bigger worst case, higher chance of profit). Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
                 </details>`;
@@ -920,9 +920,9 @@
                     try { localStorage.setItem('tradeWidth', tradeWidth); } catch (err) {}
                     rerenderAllTrades();
                 });
-                box.querySelector('[data-role=delta]').addEventListener('change', e => {
-                    tradeDelta = parseFloat(e.target.value);
-                    try { localStorage.setItem('tradeDelta', tradeDelta); } catch (err) {}
+                box.querySelector('[data-role=risk]').addEventListener('change', e => {
+                    tradeRisk = parseFloat(e.target.value);
+                    try { localStorage.setItem('tradeRisk', tradeRisk); } catch (err) {}
                     rerenderAllTrades();
                 });
                 box.querySelectorAll('[data-mkt]').forEach(inp => {
@@ -938,7 +938,7 @@
             }
             box._args = [pk, ratePctIn, capital, subtitle];
             box.querySelector('[data-role=width]').value = String(tradeWidth);
-            box.querySelector('[data-role=delta]').value = String(tradeDelta);
+            box.querySelector('[data-role=risk]').value = String(tradeRisk);
 
             const info = PERIOD_INFO[pk];
             const head = box.querySelector('[data-role=head]');
@@ -969,8 +969,9 @@
                     return `<div><div class="text-sm font-bold text-slate-200">${tk}</div><div class="text-xs text-slate-500">Enter ${tk} price in Market inputs.</div></div>`;
                 }
                 const expTxt = ch.exp ? `${fmtDate(ch.exp)} · ${ch.dte} DTE` : `~${ch.dte} DTE`;
-                const bp = findBullPut(ch, w, r, tradeDelta), ic = findCondor(ch, w, r, Math.min(tradeDelta, 0.16));
-                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry pays ${+ratePctIn.toFixed(2)}% on risk.</div>`;
+                const rNeed = r / tradeRisk;
+                const bp = findBullPut(ch, w, rNeed), ic = findCondor(ch, w, rNeed);
+                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin). Raise Max at risk.</div>`;
                 return `<details class="sec" data-ticker="${tk}" ${tickerOpen[tk] !== false ? 'open' : ''}>
                     <summary class="flex justify-between items-baseline py-1"><span class="text-sm font-bold text-slate-200"><span class="chev mr-1.5" style="font-size:16px">›</span>${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></summary>
                     <div class="space-y-2 mt-1">
