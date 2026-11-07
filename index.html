@@ -169,7 +169,7 @@
         <div class="panel">
             <div class="field">
                 <div class="field-head"><span class="field-label">Capital</span><span id="capVal" class="field-val">$25,000</span></div>
-                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="25000" aria-label="Capital">
+                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="50000" aria-label="Capital">
             </div>
 
             <div class="field">
@@ -186,7 +186,7 @@
             <div class="field" id="targetField">
                 <div class="field-head">
                     <span class="field-label">Target end value</span>
-                    <span class="field-val flex items-center" style="color: var(--mint)">$<input id="target" type="text" inputmode="numeric" value="250,000" aria-label="Target end value" class="w-32 bg-transparent text-right font-bold focus:outline-none border-b border-dashed" style="color: var(--mint); border-color: rgb(var(--grn) / .45)"></span>
+                    <span class="field-val flex items-center" style="color: var(--mint)">$<input id="target" type="text" inputmode="numeric" value="5,000,000" aria-label="Target end value" class="w-32 bg-transparent text-right font-bold focus:outline-none border-b border-dashed" style="color: var(--mint); border-color: rgb(var(--grn) / .45)"></span>
                 </div>
                 <div class="text-xs text-slate-500 mt-1.5 mb-1">Counts what's still invested plus everything pulled out.</div>
             </div>
@@ -233,7 +233,7 @@
 
             <div class="field">
                 <div class="field-head"><span class="field-label">Years</span><span id="yearsVal" class="field-val">2 years</span></div>
-                <input type="range" id="years" min="1" max="10" step="1" value="2" aria-label="Years">
+                <input type="range" id="years" min="1" max="10" step="1" value="3" aria-label="Years">
             </div>
         </div>
 
@@ -342,7 +342,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-10-31.3</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-07.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -363,7 +363,6 @@
         var currentTab = 'alloc', calcSummary = '', planSummary = '';
         // What the page solves for: 'rate' (return needed to hit a target) or 'value' (end value at a given return)
         var solveMode = 'rate';
-        try { if (localStorage.getItem('solveMode') === 'value') solveMode = 'value'; } catch (e) {}
         var solveOut = false;   // target can't be reached under 100% per period
 
         function formatUSD(num) {
@@ -527,7 +526,7 @@
         const capInput = document.getElementById('pullCap');
         [capitalInput, yearsInput, pullInput, growInput, capInput].forEach(el => el.addEventListener('input', render));
         growOn.addEventListener('change', render);
-        setCalcMode('compound');
+        setCalcMode('split');
         setPeriod('biweekly');
         render();
 
@@ -1204,7 +1203,6 @@
         }
 
         const targetIn = document.getElementById('target');
-        try { const tv = localStorage.getItem('target'); if (tv) targetIn.value = tv; } catch (e) {}
         targetIn.addEventListener('input', () => { try { localStorage.setItem('target', targetIn.value); } catch (e) {} render(); });
         targetIn.addEventListener('blur', () => {
             const v = parseFloat(targetIn.value.replace(/[^0-9.]/g, ''));
