@@ -351,7 +351,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.2</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.3</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -701,7 +701,9 @@
         let tradeWidth = 5;
         let tradeStrat = 'bullput';                         // which strategy tab is showing
         try { if (localStorage.getItem('tradeStrat') === 'condor') tradeStrat = 'condor'; } catch (e) {}
-        let tradeRisk = 0.50;                               // most of the capital one trade may put at risk
+        let tradeRisk = 0.50;                               // most of the capital one trade may use as margin
+        let tradeStop = 0.50;                               // close the trade when the loss reaches this share of its margin (1 = no stop)
+        try { const d = parseFloat(localStorage.getItem('tradeStop')); if (d > 0 && d <= 1) tradeStop = d; } catch (e) {}
         let mkt = { QQQ: { spot: '', iv: 18 }, SPY: { spot: '', iv: 15 } };
         try { const saved = JSON.parse(localStorage.getItem('mktInputs') || 'null'); if (saved) mkt = Object.assign(mkt, saved); } catch (e) {}
         try { const w = parseFloat(localStorage.getItem('tradeWidth')); if (w) tradeWidth = w; } catch (e) {}
@@ -831,45 +833,85 @@
         const fmtK = k => (Math.round(k * 100) / 100).toString();
         const fmtDate = s => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
+        // Spread value per share if the underlying were at price x halfway to expiry (same model and IVs as the quotes)
+        function spreadValue(t, ch, x) {
+            const T = ch.T / 2;
+            const P = k => bsPrice(x, k, T, ch.puts.get(k).iv, 'p'), C = k => bsPrice(x, k, T, ch.calls.get(k).iv, 'c');
+            return t.kind === 'bullput' ? P(t.short) - P(t.long)
+                : P(t.putShort) - P(t.putLong) + C(t.callShort) - C(t.callLong);
+        }
+        // Underlying price where the spread is worth `val` (searching down from spot, or up for the call side)
+        function priceAtValue(t, ch, val, up) {
+            let lo = up ? ch.spot : ch.spot * 0.5, hi = up ? ch.spot * 1.5 : ch.spot;
+            for (let k = 0; k < 60; k++) {
+                const m = (lo + hi) / 2, v = spreadValue(t, ch, m);
+                // below spot the spread gains value as price falls; above spot it gains as price rises
+                if (up ? v < val : v > val) lo = m; else hi = m;
+            }
+            return (lo + hi) / 2;
+        }
+
         function tradeBlock(t, ch, w, r, capital, info) {
             const maxProfit = t.credit * 100, maxLoss = (w - t.credit) * 100;
-            const frac = Math.min(1, r / t.ror);                 // share of capital to put at risk
+            const frac = Math.min(1, r / t.ror);                 // share of capital used as margin
             const contracts = Math.floor(capital * frac / maxLoss);
             const legs = t.kind === 'bullput'
                 ? `Sell ${fmtK(t.short)}P / Buy ${fmtK(t.long)}P`
                 : `Sell ${fmtK(t.putShort)}P / Buy ${fmtK(t.putLong)}P<br>Sell ${fmtK(t.callShort)}C / Buy ${fmtK(t.callLong)}C`;
-            const beWin = maxLoss / (maxLoss + maxProfit);
-            const edgeOk = t.pop >= beWin;
-            const lossPeriods = maxLoss / maxProfit;
-            // Everything below is measured against the allocation (capital), not the margin at risk
-            const collect = contracts * maxProfit, atRisk = contracts * maxLoss;
-            const allocRet = capital > 0 ? collect / capital : 0;
-            const allocLoss = capital > 0 ? atRisk / capital : 0;
             const pctTxt = x => (x * 100).toFixed(1) + '%';
+            const collect = contracts * maxProfit, margin = contracts * maxLoss;
+            const allocRet = capital > 0 ? collect / capital : 0;
+
+            // Stop-loss: close when the loss reaches tradeStop x the margin in the trade
+            const hasStop = tradeStop < 1;
+            const stopLossSh = tradeStop * (w - t.credit);           // loss per share at the stop
+            const stopVal = t.credit + stopLossSh;                   // spread price to buy it back at
+            let pTouch = 0, trigLo = null, trigHi = null;
+            if (hasStop) {
+                const ivLo = t.kind === 'bullput' ? ch.puts.get(t.short).iv : ch.puts.get(t.putShort).iv;
+                trigLo = priceAtValue(t, ch, stopVal, false);
+                pTouch = 2 * (1 - probAbove(ch.spot, trigLo, ch.T, ivLo));     // chance of touching that price before expiry
+                if (t.kind === 'condor') {
+                    trigHi = priceAtValue(t, ch, stopVal, true);
+                    pTouch += 2 * probAbove(ch.spot, trigHi, ch.T, ch.calls.get(t.callShort).iv);
+                }
+                pTouch = Math.min(1, Math.max(0, pTouch));
+            }
+            const lossPer = hasStop ? stopLossSh * 100 : maxLoss;    // planned loss per contract
+            const pWin = hasStop ? 1 - pTouch : t.pop;
+            const beWin = lossPer / (lossPer + maxProfit);
+            const edgeOk = pWin >= beWin;
+            const planLoss = contracts * lossPer;
+            const lossPeriods = lossPer / maxProfit;
+            const trigTxt = !hasStop ? '' : t.kind === 'bullput' ? `price falls to ~$${fmt2(trigLo)}` : `price leaves ~$${fmt2(trigLo)}–$${fmt2(trigHi)}`;
+
             const sizeLine = contracts < 1
                 ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(maxLoss / frac)}).</span>`
-                : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} on ${formatUSD(capital)} · ${formatUSD(capital - atRisk)} stays in cash`;
+                : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} · ${formatUSD(margin)} in the trade (${pctTxt(margin / capital)} of capital) · ${formatUSD(capital - margin)} stays in cash`;
             return `
                 <div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50">
                     <div class="flex justify-between items-baseline">
                         <span class="text-xs font-bold ${t.kind === 'bullput' ? 'text-sky-300' : 'text-fuchsia-300'}">${t.kind === 'bullput' ? 'Bull Put Spread' : 'Iron Condor'}</span>
-                        <span class="text-right leading-tight"><span class="block text-sm text-emerald-400 font-bold">${contracts < 1 ? '—' : '+' + pctTxt(allocRet)} on allocation</span><span class="block text-[0.68rem] text-slate-500">${(t.ror * 100).toFixed(1)}% on margin</span></span>
+                        <span class="text-right leading-tight"><span class="block text-sm text-emerald-400 font-bold">${contracts < 1 ? '—' : '+' + pctTxt(allocRet)} on capital</span><span class="block text-[0.68rem] text-slate-500">${(t.ror * 100).toFixed(1)}% on the trade</span></span>
                     </div>
                     <div class="text-sm font-semibold text-slate-100 mt-1 leading-snug">${legs}</div>
                     ${contracts < 1 ? '' : `<div class="grid grid-cols-2 gap-2 mt-2 text-center">
-                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">If it expires OTM</div><div class="text-sm font-bold text-emerald-400">+${formatUSD(collect)} <span class="font-semibold">(${pctTxt(allocRet)})</span></div></div>
-                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">Max loss</div><div class="text-sm font-bold text-rose-400">−${formatUSD(atRisk)} <span class="font-semibold">(${pctTxt(allocLoss)})</span></div></div>
+                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">If it expires OTM</div><div class="text-sm font-bold text-emerald-400">+${formatUSD(collect)}</div><div class="text-[0.68rem] text-slate-500">${pctTxt(allocRet)} of capital</div></div>
+                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">${hasStop ? 'If the stop is hit' : 'Max loss'}</div><div class="text-sm font-bold text-rose-400">−${formatUSD(planLoss)}</div><div class="text-[0.68rem] text-slate-500">${hasStop ? `${Math.round(tradeStop * 100)}% of trade · ` : '100% of trade · '}${pctTxt(planLoss / capital)} of capital</div></div>
                     </div>`}
+                    ${hasStop && contracts >= 1 ? `<div class="mt-2 px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-[0.75rem] text-slate-300">
+                        <b class="text-slate-100">Stop:</b> buy back at <b class="text-slate-100">$${fmt2(stopVal)}</b> (opened at $${fmt2(t.credit)}), about when the ${trigTxt}.
+                        <span class="text-slate-500">A gap past the stop can still cost up to the full ${formatUSD(margin)}.</span></div>` : ''}
                     <div class="grid grid-cols-3 gap-x-2 gap-y-1 text-[0.75rem] mt-2 tabular-nums">
                         <div><span class="text-slate-500">Credit / sh</span><br>$${fmt2(t.credit)}</div>
                         <div><span class="text-slate-500">Max loss / sh</span><br>$${fmt2(w - t.credit)}</div>
                         <div><span class="text-slate-500">Short Δ</span><br>${fmt2(Math.abs(t.delta))}</div>
                         <div><span class="text-slate-500">Breakeven</span><br>${t.be.map(fmt2).join(' / ')}</div>
-                        <div><span class="text-slate-500">Prob. profit</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(t.pop * 100)}%</span></div>
+                        <div><span class="text-slate-500">${hasStop ? 'Stop not hit' : 'Prob. profit'}</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(pWin * 100)}%</span></div>
                         <div><span class="text-slate-500">Win rate req.</span><br>${Math.round(beWin * 100)}%</div>
                     </div>
                     <div class="text-[0.75rem] text-slate-400 mt-2">${sizeLine}</div>
-                    <div class="text-[0.75rem] text-slate-500 mt-1">One full loss wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
+                    <div class="text-[0.75rem] text-slate-500 mt-1">${hasStop ? 'One stopped-out trade' : 'One full loss'} wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
                 </div>`;
         }
 
@@ -903,9 +945,13 @@
                             <button type="button" data-strat="condor" class="seg-btn">Iron condor</button>
                         </div>
                         <div class="flex gap-2">
-                        <label class="text-[0.75rem] text-slate-400">Max at risk
-                            <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
-                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}%</option>`).join('')}
+                        <label class="text-[0.75rem] text-slate-400">Margin up to
+                            <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Most of your capital one trade may use">
+                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}% of capital</option>`).join('')}
+                            </select></label>
+                        <label class="text-[0.75rem] text-slate-400">Stop at
+                            <select data-role="stop" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Stop-loss as a share of the trade">
+                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeStop ? 'selected' : ''}>${d === 1 ? 'No stop' : d * 100 + '% of trade'}</option>`).join('')}
                             </select></label>
                         <label class="text-[0.75rem] text-slate-400">Width
                             <select data-role="width" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
@@ -917,7 +963,7 @@
                     <div data-role="head" class="text-sm text-slate-300"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
-                        <div class="mt-1">Strikes start far from the price and move closer only until the spread earns your target while risking no more than your Max at risk share of capital. A lower limit means strikes closer to the price (fewer contracts, smaller worst case, lower chance of profit); a higher limit lets them sit further out (more contracts, bigger worst case, higher chance of profit). Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                        <div class="mt-1">Margin up to caps how much of your capital one trade may use; strikes start far from the price and move closer only until the spread earns your target within that cap. Stop at closes the trade when its loss reaches that share of the money in the trade; "Stop not hit" is the approximate chance the price never reaches the stop level before expiry (about twice the chance of finishing past it), and the win rate needed is worked out from the stop loss instead of the full loss. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
                 </details>`;
@@ -939,6 +985,11 @@
                     try { localStorage.setItem('tradeStrat', tradeStrat); } catch (err) {}
                     rerenderAllTrades();
                 }));
+                box.querySelector('[data-role=stop]').addEventListener('change', e => {
+                    tradeStop = parseFloat(e.target.value);
+                    try { localStorage.setItem('tradeStop', tradeStop); } catch (err) {}
+                    rerenderAllTrades();
+                });
                 box.querySelector('[data-role=risk]').addEventListener('change', e => {
                     tradeRisk = parseFloat(e.target.value);
                     try { localStorage.setItem('tradeRisk', tradeRisk); } catch (err) {}
@@ -958,6 +1009,7 @@
             box._args = [pk, ratePctIn, capital, subtitle];
             box.querySelector('[data-role=width]').value = String(tradeWidth);
             box.querySelector('[data-role=risk]').value = String(tradeRisk);
+            box.querySelector('[data-role=stop]').value = String(tradeStop);
             box.querySelectorAll('[data-strat]').forEach(b => b.className = b.dataset.strat === tradeStrat ? 'seg-btn on' : 'seg-btn');
 
             const info = PERIOD_INFO[pk];
@@ -991,7 +1043,7 @@
                 const expTxt = ch.exp ? `${fmtDate(ch.exp)} · ${ch.dte} DTE` : `~${ch.dte} DTE`;
                 const rNeed = r / tradeRisk;
                 const bp = findBullPut(ch, w, rNeed), ic = findCondor(ch, w, rNeed);
-                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin). Raise Max at risk.</div>`;
+                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin). Raise Margin up to.</div>`;
                 return `<details class="sec" data-ticker="${tk}" ${tickerOpen[tk] !== false ? 'open' : ''}>
                     <summary class="flex justify-between items-baseline py-1"><span class="text-sm font-bold text-slate-200"><span class="chev mr-1.5" style="font-size:16px">›</span>${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></summary>
                     <div class="space-y-2 mt-1">
