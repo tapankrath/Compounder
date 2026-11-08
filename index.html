@@ -140,6 +140,19 @@
         @media (max-width: 380px) { .tab-btn { padding: 7px 10px; font-size: 14px; } }
         .tab-btn.on { background: var(--surface); color: var(--text); }
 
+        /* Compact setup so the whole plan and the See trades button fit on one phone screen */
+        .head-card { padding: 12px 16px 14px; }
+        .hero { padding-top: 8px; }
+        .hero-sub { margin-top: 6px; font-size: 15px; }
+        .frame { padding: 6px; }
+        .panel { padding: 14px 18px 8px; }
+        .field { padding-bottom: 2px; }
+        .field + .field { margin-top: 6px; }
+        input[type=range] { height: 28px; }
+        .seg-btn { padding: 6px 6px; }
+        .sub { margin-top: 4px; }
+        #splitWrap label { margin-top: 0; }
+
         /* Two steps: set the plan, then see trades with the plan pinned on top */
         body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
         body.stage-trades #panelInputs { display: none; }
@@ -194,9 +207,8 @@
             <div class="field" id="targetField">
                 <div class="field-head">
                     <span class="field-label">Target end value</span>
-                    <span class="field-val flex items-center" style="color: var(--mint)">$<input id="target" type="text" inputmode="numeric" value="5,000,000" aria-label="Target end value" class="w-32 bg-transparent text-right font-bold focus:outline-none border-b border-dashed" style="color: var(--mint); border-color: rgb(var(--grn) / .45)"></span>
+                    <span class="field-val flex items-center" style="color: var(--mint)">$<input id="target" type="text" inputmode="numeric" value="5,000,000" aria-label="Target end value (what's still invested plus everything pulled out)" title="Counts what's still invested plus everything pulled out" class="w-32 bg-transparent text-right font-bold focus:outline-none border-b border-dashed" style="color: var(--mint); border-color: rgb(var(--grn) / .45)"></span>
                 </div>
-                <div class="text-xs text-slate-500 mt-1.5 mb-1">Counts what's still invested plus everything pulled out.</div>
             </div>
 
             <div class="field" id="rateField">
@@ -243,7 +255,7 @@
                 <div class="field-head"><span class="field-label">Years</span><span id="yearsVal" class="field-val">2 years</span></div>
                 <input type="range" id="years" min="1" max="10" step="1" value="3" aria-label="Years">
             </div>
-            <button type="button" id="seeTrades" onclick="setStage('trades')" class="w-full mt-4 mb-2 py-3.5 rounded-2xl text-[1.05rem] font-bold" style="background: var(--gold); color: rgb(var(--on-acc))">See trades →</button>
+            <button type="button" id="seeTrades" onclick="setStage('trades')" class="w-full mt-3 mb-1.5 py-3 rounded-2xl text-[1.05rem] font-bold" style="background: var(--gold); color: rgb(var(--on-acc))">See trades →</button>
         </div>
 
         <div class="list" id="tradesCard"><div id="calcTrades"></div></div>
@@ -351,7 +363,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.3</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.4</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1184,7 +1196,7 @@
         // Size the big result to fill its line without ever spilling past the card edge
         function fitHeroes() {
             const stuck = document.getElementById('topbar').classList.contains('stuck');
-            const max = document.body.classList.contains('stage-trades') ? 40 : stuck ? 42 : 64, min = 26;
+            const max = document.body.classList.contains('stage-trades') ? 40 : stuck ? 42 : 52, min = 26;
             ['heroVal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el || !el.offsetParent) return;
