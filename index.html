@@ -140,10 +140,17 @@
         @media (max-width: 380px) { .tab-btn { padding: 7px 10px; font-size: 14px; } }
         .tab-btn.on { background: var(--surface); color: var(--text); }
 
+        /* Two steps: set the plan, then see trades with the plan pinned on top */
+        body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
+        body.stage-trades #panelInputs { display: none; }
+        body.stage-trades .hero { padding-top: 6px; }
+        body.stage-trades .hero-sub { font-size: 14px; margin-top: 4px; }
+        .strat .seg-btn { padding: 6px 12px; font-size: 14px; }
+
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
 </head>
-<body class="text-slate-100 min-h-screen px-3 pb-10 font-sans select-none" style="background: var(--ink)">
+<body class="stage-setup text-slate-100 min-h-screen px-3 pb-10 font-sans select-none" style="background: var(--ink)">
 
     <div class="max-w-md mx-auto space-y-2">
         <div id="topSentinel" style="height:1px;margin-bottom:-1px"></div>
@@ -152,7 +159,8 @@
           <div class="head-card">
             <div class="flex items-center justify-between gap-3">
                 <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
-                <div class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
+                <button id="editPlan" type="button" onclick="setStage('setup')" class="tab-btn shrink-0" style="background: rgba(255,255,255,.92); color: rgb(var(--hero)); font-weight: 700" hidden>← Edit plan</button>
+                <div id="solveSeg" class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
                     <button id="solveRate" class="tab-btn" onclick="setSolve('rate')" aria-label="Solve for return needed">% needed</button>
                     <button id="solveValue" class="tab-btn" onclick="setSolve('value')" aria-label="Solve for end value">End value</button>
                 </div>
@@ -166,7 +174,7 @@
 
         <div id="viewAlloc" class="frame space-y-2.5">
 
-        <div class="panel">
+        <div class="panel" id="panelInputs">
             <div class="field">
                 <div class="field-head"><span class="field-label">Capital</span><span id="capVal" class="field-val">$25,000</span></div>
                 <input type="range" id="capital" min="10000" max="1000000" step="5000" value="50000" aria-label="Capital">
@@ -235,9 +243,12 @@
                 <div class="field-head"><span class="field-label">Years</span><span id="yearsVal" class="field-val">2 years</span></div>
                 <input type="range" id="years" min="1" max="10" step="1" value="3" aria-label="Years">
             </div>
+            <button type="button" id="seeTrades" onclick="setStage('trades')" class="w-full mt-4 mb-2 py-3.5 rounded-2xl text-[1.05rem] font-bold" style="background: var(--gold); color: rgb(var(--on-acc))">See trades →</button>
         </div>
 
-        <div class="list">
+        <div class="list" id="tradesCard"><div id="calcTrades"></div></div>
+
+        <div class="list" id="moreList">
             <details class="sec" data-remember="endstate">
                 <summary class="row-sum">
                     <span class="row-title">Breakdown</span>
@@ -275,8 +286,6 @@
                     <div class="text-[0.75rem] text-slate-500 mt-3 leading-relaxed">The small number is the yearly equivalent (for Split, how fast the invested balance grows). Red is above 25% per period. Tap a cell to use it.</div>
                 </div>
             </details>
-
-            <div id="calcTrades"></div>
 
             <details class="sec" data-remember="actuals">
                 <summary class="row-sum">
@@ -342,7 +351,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-07.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.1</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -690,6 +699,8 @@
         const TRADE_TICKERS = ['QQQ', 'SPY'];
         let LIVE = null;                                    // options.json contents when available
         let tradeWidth = 5;
+        let tradeStrat = 'bullput';                         // which strategy tab is showing
+        try { if (localStorage.getItem('tradeStrat') === 'condor') tradeStrat = 'condor'; } catch (e) {}
         let tradeRisk = 0.50;                               // most of the capital one trade may put at risk
         let mkt = { QQQ: { spot: '', iv: 18 }, SPY: { spot: '', iv: 15 } };
         try { const saved = JSON.parse(localStorage.getItem('mktInputs') || 'null'); if (saved) mkt = Object.assign(mkt, saved); } catch (e) {}
@@ -873,7 +884,11 @@
                         <span class="flex items-center gap-2"><span data-role="sumtag" class="row-tag"></span><span class="chev">›</span></span>
                     </summary>
                 <div class="px-[20px] pb-4 space-y-3">
-                    <div class="flex justify-end">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="seg strat" data-role="strat">
+                            <button type="button" data-strat="bullput" class="seg-btn">Bull put</button>
+                            <button type="button" data-strat="condor" class="seg-btn">Iron condor</button>
+                        </div>
                         <div class="flex gap-2">
                         <label class="text-[0.75rem] text-slate-400">Max at risk
                             <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
@@ -885,6 +900,7 @@
                             </select></label>
                         </div>
                     </div>
+                    <div data-role="results" class="space-y-3"></div>
                     <div data-role="head" class="text-sm text-slate-300"></div>
                     <div data-role="source" class="text-[0.75rem]"></div>
                     <details data-role="mktbox" class="sec text-xs">
@@ -899,7 +915,6 @@
                         </div>
                         <div class="text-[0.75rem] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
                     </details>
-                    <div data-role="results" class="space-y-3"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
                         <div class="mt-1">Strikes start far from the price and move closer only until the spread earns your target while risking no more than your Max at risk share of capital. A lower limit means strikes closer to the price (fewer contracts, smaller worst case, lower chance of profit); a higher limit lets them sit further out (more contracts, bigger worst case, higher chance of profit). Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
@@ -919,6 +934,11 @@
                     try { localStorage.setItem('tradeWidth', tradeWidth); } catch (err) {}
                     rerenderAllTrades();
                 });
+                box.querySelectorAll('[data-strat]').forEach(b => b.addEventListener('click', () => {
+                    tradeStrat = b.dataset.strat;
+                    try { localStorage.setItem('tradeStrat', tradeStrat); } catch (err) {}
+                    rerenderAllTrades();
+                }));
                 box.querySelector('[data-role=risk]').addEventListener('change', e => {
                     tradeRisk = parseFloat(e.target.value);
                     try { localStorage.setItem('tradeRisk', tradeRisk); } catch (err) {}
@@ -938,6 +958,7 @@
             box._args = [pk, ratePctIn, capital, subtitle];
             box.querySelector('[data-role=width]').value = String(tradeWidth);
             box.querySelector('[data-role=risk]').value = String(tradeRisk);
+            box.querySelectorAll('[data-strat]').forEach(b => b.className = b.dataset.strat === tradeStrat ? 'seg-btn on' : 'seg-btn');
 
             const info = PERIOD_INFO[pk];
             const head = box.querySelector('[data-role=head]');
@@ -974,8 +995,9 @@
                 return `<details class="sec" data-ticker="${tk}" ${tickerOpen[tk] !== false ? 'open' : ''}>
                     <summary class="flex justify-between items-baseline py-1"><span class="text-sm font-bold text-slate-200"><span class="chev mr-1.5" style="font-size:16px">›</span>${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></summary>
                     <div class="space-y-2 mt-1">
-                    ${bp ? tradeBlock(bp, ch, w, r, capital, info) : none('Bull Put Spread')}
-                    ${ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor')}
+                    ${tradeStrat === 'condor'
+                        ? (ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor'))
+                        : (bp ? tradeBlock(bp, ch, w, r, capital, info) : none('Bull Put Spread'))}
                     </div>
                 </details>`;
             }).join('');
@@ -1111,7 +1133,7 @@
         // Size the big result to fill its line without ever spilling past the card edge
         function fitHeroes() {
             const stuck = document.getElementById('topbar').classList.contains('stuck');
-            const max = stuck ? 42 : 64, min = 26;
+            const max = document.body.classList.contains('stage-trades') ? 40 : stuck ? 42 : 64, min = 26;
             ['heroVal'].forEach(id => {
                 const el = document.getElementById(id);
                 if (!el || !el.offsetParent) return;
@@ -1122,6 +1144,21 @@
         }
         window.addEventListener('resize', fitHeroes);
         if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeroes);
+
+        // ===================== STEPS: plan -> trades =====================
+        function setStage(st) {
+            document.body.classList.toggle('stage-setup', st === 'setup');
+            document.body.classList.toggle('stage-trades', st === 'trades');
+            document.getElementById('solveSeg').hidden = st === 'trades';
+            document.getElementById('editPlan').hidden = st !== 'trades';
+            if (st === 'trades') {
+                const d = document.querySelector('#calcTrades > details'); if (d) d.open = true;
+                tickerOpen = {}; try { localStorage.removeItem('tickerOpen'); } catch (e) {}
+                document.querySelectorAll('#calcTrades details[data-ticker]').forEach(x => x.open = true);
+            }
+            window.scrollTo(0, 0);
+            fitHeroes();
+        }
 
         // ===================== SOLVE FOR =====================
         function setSolve(mode) {
