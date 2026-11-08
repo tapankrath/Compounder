@@ -153,6 +153,14 @@
         .sub { margin-top: 4px; }
         #splitWrap label { margin-top: 0; }
 
+        /* Setup step fills the screen exactly: card stretches, rows spread evenly, button at the bottom */
+        body.stage-setup { padding-bottom: calc(env(safe-area-inset-bottom) + 10px) !important; }
+        body.stage-setup > .max-w-md { display: flex; flex-direction: column; min-height: calc(100svh - env(safe-area-inset-bottom) - 10px); }
+        body.stage-setup #viewAlloc { flex: 1; display: flex; flex-direction: column; }
+        body.stage-setup #panelInputs { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 14px; }
+        body.stage-setup #panelInputs .field + .field { margin-top: 0; }
+        body.stage-setup #seeTrades { margin-bottom: 0; }
+
         /* Two steps: set the plan, then see trades with the plan pinned on top */
         body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
         body.stage-trades #panelInputs { display: none; }
@@ -363,7 +371,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.4</div>
+    <!-- build 2026-11-08.5 -->
 
     <script>
         // ===================== ALLOCATOR =====================
