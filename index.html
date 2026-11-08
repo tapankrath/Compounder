@@ -351,7 +351,7 @@
 
     </div>
 
-    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.1</div>
+    <div class="text-center text-[0.68rem] text-slate-600 mt-10">build 2026-11-08.2</div>
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -884,6 +884,19 @@
                         <span class="flex items-center gap-2"><span data-role="sumtag" class="row-tag"></span><span class="chev">›</span></span>
                     </summary>
                 <div class="px-[20px] pb-4 space-y-3">
+                    <div data-role="source" class="text-[0.75rem]"></div>
+                    <details data-role="mktbox" class="sec text-xs">
+                        <summary class="text-[0.8rem] text-slate-400 font-semibold"><span class="chev mr-1" style="font-size:15px">›</span>Market inputs, used when there's no live data</summary>
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            ${TRADE_TICKERS.map(tk => `
+                            <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-700/50 space-y-1">
+                                <div class="font-bold text-slate-300">${tk}</div>
+                                <label class="flex justify-between items-center text-slate-400">Price $<input data-mkt="${tk}.spot" type="number" inputmode="decimal" step="0.01" placeholder="e.g. 500" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 text-right text-slate-100"></label>
+                                <label class="flex justify-between items-center text-slate-400">IV %<input data-mkt="${tk}.iv" type="number" inputmode="decimal" step="0.5" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 text-right text-slate-100"></label>
+                            </div>`).join('')}
+                        </div>
+                        <div class="text-[0.75rem] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
+                    </details>
                     <div class="flex items-center justify-between gap-2 flex-wrap">
                         <div class="seg strat" data-role="strat">
                             <button type="button" data-strat="bullput" class="seg-btn">Bull put</button>
@@ -902,19 +915,6 @@
                     </div>
                     <div data-role="results" class="space-y-3"></div>
                     <div data-role="head" class="text-sm text-slate-300"></div>
-                    <div data-role="source" class="text-[0.75rem]"></div>
-                    <details data-role="mktbox" class="sec text-xs">
-                        <summary class="text-[0.8rem] text-slate-400 font-semibold"><span class="chev mr-1" style="font-size:15px">›</span>Market inputs, used when there's no live data</summary>
-                        <div class="grid grid-cols-2 gap-2 mt-2">
-                            ${TRADE_TICKERS.map(tk => `
-                            <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-700/50 space-y-1">
-                                <div class="font-bold text-slate-300">${tk}</div>
-                                <label class="flex justify-between items-center text-slate-400">Price $<input data-mkt="${tk}.spot" type="number" inputmode="decimal" step="0.01" placeholder="e.g. 500" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 text-right text-slate-100"></label>
-                                <label class="flex justify-between items-center text-slate-400">IV %<input data-mkt="${tk}.iv" type="number" inputmode="decimal" step="0.5" class="w-20 bg-slate-800 border border-slate-600 rounded px-1 text-right text-slate-100"></label>
-                            </div>`).join('')}
-                        </div>
-                        <div class="text-[0.75rem] text-slate-500 mt-1">IV = the ticker's ~30-day implied volatility (VXN for QQQ, VIX for SPY is a good proxy).</div>
-                    </details>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
                         <div class="mt-1">Strikes start far from the price and move closer only until the spread earns your target while risking no more than your Max at risk share of capital. A lower limit means strikes closer to the price (fewer contracts, smaller worst case, lower chance of profit); a higher limit lets them sit further out (more contracts, bigger worst case, higher chance of profit). Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
@@ -972,7 +972,7 @@
                 box.querySelector('[data-role=mktbox]').style.display = 'none';
             } else {
                 box.querySelector('[data-role=mktbox]').style.display = '';
-                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes yet (options.json missing in the repo), so strikes and credits are modeled from the price and IV below.</span>` + refreshUI();
+                src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes found, so strikes and credits are modeled from the price and IV you enter here.</span>` + refreshUI();
             }
 
             if (ratePctIn == null) { head.innerHTML = 'Target not reachable at this period length.'; res.innerHTML = ''; return; }
@@ -1028,8 +1028,7 @@
         // Load quotes from the site copy, the repo copy (fresh within minutes) and, with a key, the API (instant). Newest wins.
         function loadQuotes() {
             const reqs = [fetch('options.json?t=' + Date.now(), { cache: 'no-store' })];
-            if (/\.github\.io$/i.test(location.hostname))
-                reqs.push(fetch(`https://raw.githubusercontent.com/${REPO.owner}/${REPO.repo}/main/options.json?t=${Date.now()}`, { cache: 'no-store' }));
+            reqs.push(fetch(`https://raw.githubusercontent.com/${REPO.owner}/${REPO.repo}/main/options.json?t=${Date.now()}`, { cache: 'no-store' }));
             if (ghToken)
                 reqs.push(fetch(`${GH_API}/contents/options.json?ref=main&t=${Date.now()}`, { cache: 'no-store', headers: Object.assign(ghHeaders(), { 'Accept': 'application/vnd.github.raw' }) }));
             return Promise.all(reqs.map(p => p.then(r => r.ok ? r.json() : null).catch(() => null)))
