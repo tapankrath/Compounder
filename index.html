@@ -161,6 +161,14 @@
         body.stage-setup #panelInputs .field + .field { margin-top: 0; }
         body.stage-setup #seeTrades { margin-bottom: 0; }
 
+        /* Line in the pinned header: what the suggested trades actually earn vs the goal */
+        .hero-reach { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.15); font-size: 13.5px; line-height: 1.4; color: rgba(255,255,255,.8); }
+        .hero-reach:empty { display: none; }
+        .hero-reach b { color: #fff; }
+        .hero-reach .ok { color: #BFE6CB; font-weight: 700; }
+        .hero-reach .short { color: #F4CD85; font-weight: 700; }
+        body.stage-setup .hero-reach { display: none; }
+
         /* Two steps: set the plan, then see trades with the plan pinned on top */
         body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
         body.stage-trades #panelInputs { display: none; }
@@ -189,6 +197,7 @@
             <div id="heroAllocWrap" class="hero">
                 <div id="heroVal" class="hero-val">$0</div>
                 <div id="heroSub" class="hero-sub"></div>
+                <div id="heroReach" class="hero-reach"></div>
             </div>
           </div>
         </div>
@@ -371,7 +380,7 @@
 
     </div>
 
-    <!-- build 2026-11-08.7 -->
+    <!-- build 2026-11-08.8 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -392,7 +401,8 @@
         var currentTab = 'alloc', calcSummary = '', planSummary = '';
         // What the page solves for: 'rate' (return needed to hit a target) or 'value' (end value at a given return)
         var solveMode = 'rate';
-        var solveOut = false;   // target can't be reached under 100% per period
+        var solveOut = false;
+        var planCtx = null;     // capital, periods and pull schedule of the current plan, for the header's "trades earn" line   // target can't be reached under 100% per period
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
@@ -516,6 +526,7 @@
                 : calcMode === 'simple' ? `${+ratePct.toFixed(2)}% every period, all pulled out: ${formatUSD(P * r)} per period on a flat ${formatUSD(P)} balance.`
                 : growing ? `${+ratePct.toFixed(2)}% every period: pull starts at ${pullPct}% of the gain and rises ${growInput.value}% of itself each period (capped at ${Math.round(Math.max(cap, f) * 100)}%). The rest is reinvested.`
                 : `${+ratePct.toFixed(2)}% every period: ${pullPct}% of the gain pulled out, ${100 - pullPct}% reinvested, so the balance grows ${+effRate.toFixed(3)}% per period (≈ ${+growAnnual.toFixed(1)}% / yr) and the payout grows with it.`;
+            planCtx = { P, periods, pullAt, goal: solveMode === 'rate' ? target : total };
             if (tradesReady) renderTrades('calcTrades', period, solveOut ? null : ratePct, P, '');
             const modeWord = { compound: 'compounded', simple: 'simple, gains pulled out', split: `split, ${pullPct}% pulled` }[calcMode];
             // Astronomical results get a short form so the hero stays readable
@@ -925,6 +936,7 @@
                     </table>
                 </div>`;
 
+            tradeBlock.lastRet = contracts >= 1 ? allocRet : null;
             const sizeLine = contracts < 1
                 ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(maxLoss / frac)}).</span>`
                 : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} · ${formatUSD(margin)} in the trade (${pctTxt(margin / capital)} of capital) · ${formatUSD(capital - margin)} stays in cash`;
@@ -985,21 +997,21 @@
                             <button type="button" data-strat="bullput" class="seg-btn">Bull put</button>
                             <button type="button" data-strat="condor" class="seg-btn">Iron condor</button>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="grid grid-cols-2 gap-x-3 gap-y-2 w-full">
                         <label class="text-[0.75rem] text-slate-400">Margin up to
-                            <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Most of your capital one trade may use">
+                            <select data-role="risk" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Most of your capital one trade may use">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}% of capital</option>`).join('')}
                             </select></label>
                         <label class="text-[0.75rem] text-slate-400">Trim size
-                            <select data-role="trim" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Trade fewer contracts than the target needs">
+                            <select data-role="trim" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Trade fewer contracts than the target needs">
                                 ${[0, 0.1, 0.2, 0.3].map(d => `<option value="${d}" ${d === tradeTrim ? 'selected' : ''}>${d ? d * 100 + '% fewer' : 'Off'}</option>`).join('')}
                             </select></label>
                         <label class="text-[0.75rem] text-slate-400">Stop at
-                            <select data-role="stop" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Stop-loss as a share of the trade">
+                            <select data-role="stop" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Stop-loss as a share of the trade">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeStop ? 'selected' : ''}>${d === 1 ? 'No stop' : d * 100 + '% of trade'}</option>`).join('')}
                             </select></label>
                         <label class="text-[0.75rem] text-slate-400">Width
-                            <select data-role="width" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1">
+                            <select data-role="width" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200">
                                 ${[1, 2, 5, 10].map(w => `<option value="${w}" ${w === tradeWidth ? 'selected' : ''}>$${w}</option>`).join('')}
                             </select></label>
                         </div>
@@ -1078,6 +1090,7 @@
                 src.innerHTML = `<span class="text-amber-400">● Estimate</span> <span class="text-slate-500">— no live quotes found, so strikes and credits are modeled from the price and IV you enter here.</span>` + refreshUI();
             }
 
+            if (containerId === 'calcTrades') updateReach({}, pk);
             if (ratePctIn == null) { head.innerHTML = 'Target not reachable at this period length.'; res.innerHTML = ''; return; }
             const r = ratePctIn / 100;
             box.querySelector('[data-role=sumtag]').textContent = `${+ratePctIn.toFixed(2)}% per ${EVERY[pk]}`;
@@ -1085,6 +1098,7 @@
             if (r <= 0) { res.innerHTML = '<div class="text-xs text-slate-400">No return needed.</div>'; return; }
 
             const w = tradeWidth;
+            const rets = {};
             res.innerHTML = TRADE_TICKERS.map(tk => {
                 const ch = getChain(tk, pk);
                 if (!ch) {
@@ -1095,15 +1109,34 @@
                 const rNeed = r / tradeRisk;
                 const bp = findBullPut(ch, w, rNeed), ic = findCondor(ch, w, rNeed);
                 const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin). Raise Margin up to.</div>`;
+                tradeBlock.lastRet = null;
+                const card = tradeStrat === 'condor'
+                    ? (ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor'))
+                    : (bp ? tradeBlock(bp, ch, w, r, capital, info, tk) : none('Bull Put Spread'));
+                rets[tk] = tradeBlock.lastRet;
                 return `<details class="sec" data-ticker="${tk}" ${tickerOpen[tk] !== false ? 'open' : ''}>
                     <summary class="flex justify-between items-baseline py-1"><span class="text-sm font-bold text-slate-200"><span class="chev mr-1.5" style="font-size:16px">›</span>${tk} <span class="font-normal text-slate-400">$${fmt2(ch.spot)}</span></span><span class="text-xs text-purple-300">${expTxt}</span></summary>
                     <div class="space-y-2 mt-1">
-                    ${tradeStrat === 'condor'
-                        ? (ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor'))
-                        : (bp ? tradeBlock(bp, ch, w, r, capital, info, tk) : none('Bull Put Spread'))}
+                    ${card}
                     </div>
                 </details>`;
             }).join('');
+            if (containerId === 'calcTrades') updateReach(rets, pk);
+        }
+
+        // Header line: what the suggested trades earn per period, and where that rate would end up vs the goal
+        function updateReach(rets, pk) {
+            const el = document.getElementById('heroReach');
+            if (!el) return;
+            const vals = Object.entries(rets || {}).filter(([, v]) => v != null && v > 0);
+            if (!vals.length || !planCtx || !(planCtx.goal > 0)) { el.innerHTML = ''; return; }
+            const big = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: v >= 1e6 ? 'compact' : 'standard', maximumFractionDigits: v >= 1e6 ? 2 : 0 }).format(v);
+            const parts = vals.map(([tk, v]) => {
+                const end = simulateTotal(planCtx.P, v, planCtx.periods, planCtx.pullAt);
+                const ok = end >= planCtx.goal * 0.995;
+                return `${tk} <b>${(v * 100).toFixed(2)}%</b> → <span class="${ok ? 'ok' : 'short'}">${big(end)}</span>`;
+            });
+            el.innerHTML = `Trades below earn ${parts.join(' · ')} <span style="opacity:.75">vs ${big(planCtx.goal)} goal</span>`;
         }
 
         function rerenderAllTrades() {
