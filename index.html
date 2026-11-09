@@ -371,7 +371,7 @@
 
     </div>
 
-    <!-- build 2026-11-08.5 -->
+    <!-- build 2026-11-08.7 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -722,6 +722,8 @@
         let tradeStrat = 'bullput';                         // which strategy tab is showing
         try { if (localStorage.getItem('tradeStrat') === 'condor') tradeStrat = 'condor'; } catch (e) {}
         let tradeRisk = 0.50;                               // most of the capital one trade may use as margin
+        let tradeTrim = 0;                                  // trade this share fewer contracts than the target needs (0 = full size)
+        try { const h = parseFloat(localStorage.getItem('tradeTrim')); if (h >= 0 && h < 1) tradeTrim = h; } catch (e) {}
         let tradeStop = 0.50;                               // close the trade when the loss reaches this share of its margin (1 = no stop)
         try { const d = parseFloat(localStorage.getItem('tradeStop')); if (d > 0 && d <= 1) tradeStop = d; } catch (e) {}
         let mkt = { QQQ: { spot: '', iv: 18 }, SPY: { spot: '', iv: 15 } };
@@ -766,15 +768,15 @@
         }
 
         // Build {spot, T, dte, exp, live, puts, calls}; puts/calls: Map strike -> {mid, iv, delta}
-        function getChain(tk, pk) {
-            const target = TARGET_DTE[pk];
+        function getChain(tk, pk, days, minDays) {
+            const target = days || TARGET_DTE[pk];
             const L = LIVE && LIVE.tickers && LIVE.tickers[tk];
             if (L && L.spot && L.expiries && L.expiries.length) {
                 const S = L.spot;
                 let best = null;
                 L.expiries.forEach(e => {
                     const d = daysUntil(e.exp);
-                    if (d < 0.5) return;
+                    if (d < 0.5 || (minDays && d < minDays)) return;
                     const score = Math.abs(d - target) - (d >= target ? 0.1 : 0);
                     if (!best || score < best.score) best = { e, d, score };
                 });
@@ -787,7 +789,7 @@
                             if (!(mid > 0)) return;
                             const iv = impliedVol(mid, S, k, T, type) || (yiv > 0.01 ? yiv : null);
                             if (!iv) return;
-                            m.set(k, { mid, iv, delta: bsDelta(S, k, T, iv, type), quoted: bid > 0 && ask > 0 });
+                            m.set(k, { mid, ask: ask > 0 ? ask : mid, iv, delta: bsDelta(S, k, T, iv, type), quoted: bid > 0 && ask > 0 });
                         });
                         return m;
                     };
@@ -798,14 +800,14 @@
             // Estimate: Black-Scholes on $1 strikes with a simple index-style skew
             const S = parseFloat(mkt[tk].spot), atm = parseFloat(mkt[tk].iv) / 100;
             if (!(S > 0) || !(atm > 0)) return null;
-            const T = target / 365;
+            const T = Math.max(target, minDays || 0) / 365;
             const puts = new Map(), calls = new Map();
             for (let k = Math.ceil(S * 0.7); k <= Math.floor(S * 1.3); k++) {
                 const iv = atm * Math.min(1.8, Math.max(0.7, 1 + 1.5 * Math.log(S / k)));
                 puts.set(k, { mid: bsPrice(S, k, T, iv, 'p'), iv, delta: bsDelta(S, k, T, iv, 'p') });
                 calls.set(k, { mid: bsPrice(S, k, T, iv, 'c'), iv, delta: bsDelta(S, k, T, iv, 'c') });
             }
-            return { spot: S, T, dte: target, exp: null, live: false, puts, calls };
+            return { spot: S, T, dte: Math.round(T * 365), exp: null, live: false, puts, calls };
         }
 
         // Bull put spread: walk in from the furthest strike and take the first one whose return on margin
@@ -871,10 +873,11 @@
             return (lo + hi) / 2;
         }
 
-        function tradeBlock(t, ch, w, r, capital, info) {
+        function tradeBlock(t, ch, w, r, capital, info, tk) {
             const maxProfit = t.credit * 100, maxLoss = (w - t.credit) * 100;
             const frac = Math.min(1, r / t.ror);                 // share of capital used as margin
-            const contracts = Math.floor(capital * frac / maxLoss);
+            const fullN = Math.floor(capital * frac / maxLoss);       // contracts that hit the target
+            const contracts = Math.floor(fullN * (1 - tradeTrim));    // what you'd actually trade
             const legs = t.kind === 'bullput'
                 ? `Sell ${fmtK(t.short)}P / Buy ${fmtK(t.long)}P`
                 : `Sell ${fmtK(t.putShort)}P / Buy ${fmtK(t.putLong)}P<br>Sell ${fmtK(t.callShort)}C / Buy ${fmtK(t.callLong)}C`;
@@ -905,6 +908,23 @@
             const lossPeriods = lossPer / maxProfit;
             const trigTxt = !hasStop ? '' : t.kind === 'bullput' ? `price falls to ~$${fmt2(trigLo)}` : `price leaves ~$${fmt2(trigLo)}–$${fmt2(trigHi)}`;
 
+            // Trim size: same trade, fewer contracts; compare with full size
+            const sgn = v => (v >= 0 ? '+' : '−') + formatUSD(Math.abs(v));
+            const col = v => v >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            const tRow = (label, per) => `<tr class="border-t border-slate-700"><td class="py-1 pr-1 text-slate-400">${label}</td>
+                <td class="text-right whitespace-nowrap pl-1 ${col(per)}">${sgn(fullN * per)}</td>
+                <td class="text-right whitespace-nowrap pl-1 font-bold ${col(per)}">${sgn(contracts * per)}</td></tr>`;
+            const trimBox = !(tradeTrim > 0) || fullN < 1 ? '' : `
+                <div class="mt-2 px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-[0.75rem] text-slate-300">
+                    <div><b class="text-slate-100">Trimmed ${Math.round(tradeTrim * 100)}%:</b> ${contracts} contracts instead of ${fullN}. You earn ${pctTxt(allocRet)} instead of ${pctTxt(fullN * maxProfit / capital)} on capital, and every loss shrinks by the same share.</div>
+                    <table class="w-full mt-1.5 tabular-nums">
+                        <tr class="text-slate-500"><th class="text-left font-semibold">If…</th><th class="text-right font-semibold">${fullN} contracts</th><th class="text-right font-semibold">${contracts} contracts</th></tr>
+                        ${tRow(t.kind === 'bullput' ? 'Price stays up' : 'Stays in range', maxProfit)}
+                        ${hasStop ? tRow(`Stop hit ~$${fmt2(trigLo)}${t.kind === 'condor' ? ` / $${fmt2(trigHi)}` : ''}`, -lossPer) : ''}
+                        ${tRow(t.kind === 'bullput' ? `Falls past $${fmtK(t.long)}` : 'Moves past a long strike', -maxLoss)}
+                    </table>
+                </div>`;
+
             const sizeLine = contracts < 1
                 ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(maxLoss / frac)}).</span>`
                 : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} · ${formatUSD(margin)} in the trade (${pctTxt(margin / capital)} of capital) · ${formatUSD(capital - margin)} stays in cash`;
@@ -930,6 +950,7 @@
                         <div><span class="text-slate-500">${hasStop ? 'Stop not hit' : 'Prob. profit'}</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(pWin * 100)}%</span></div>
                         <div><span class="text-slate-500">Win rate req.</span><br>${Math.round(beWin * 100)}%</div>
                     </div>
+                    ${trimBox}
                     <div class="text-[0.75rem] text-slate-400 mt-2">${sizeLine}</div>
                     <div class="text-[0.75rem] text-slate-500 mt-1">${hasStop ? 'One stopped-out trade' : 'One full loss'} wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
                 </div>`;
@@ -969,6 +990,10 @@
                             <select data-role="risk" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Most of your capital one trade may use">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}% of capital</option>`).join('')}
                             </select></label>
+                        <label class="text-[0.75rem] text-slate-400">Trim size
+                            <select data-role="trim" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Trade fewer contracts than the target needs">
+                                ${[0, 0.1, 0.2, 0.3].map(d => `<option value="${d}" ${d === tradeTrim ? 'selected' : ''}>${d ? d * 100 + '% fewer' : 'Off'}</option>`).join('')}
+                            </select></label>
                         <label class="text-[0.75rem] text-slate-400">Stop at
                             <select data-role="stop" class="bg-slate-700 border border-slate-600 rounded px-1 py-0.5 text-slate-200 ml-1" aria-label="Stop-loss as a share of the trade">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeStop ? 'selected' : ''}>${d === 1 ? 'No stop' : d * 100 + '% of trade'}</option>`).join('')}
@@ -983,7 +1008,7 @@
                     <div data-role="head" class="text-sm text-slate-300"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
-                        <div class="mt-1">Margin up to caps how much of your capital one trade may use; strikes start far from the price and move closer only until the spread earns your target within that cap. Stop at closes the trade when its loss reaches that share of the money in the trade; "Stop not hit" is the approximate chance the price never reaches the stop level before expiry (about twice the chance of finishing past it), and the win rate needed is worked out from the stop loss instead of the full loss. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                        <div class="mt-1">Trim size trades that share fewer contracts than the target needs: you earn less per period, and every loss shrinks by the same share. On these spreads that protects more, for the same profit given up, than buying puts as a hedge. Margin up to caps how much of your capital one trade may use; strikes start far from the price and move closer only until the spread earns your target within that cap. Stop at closes the trade when its loss reaches that share of the money in the trade; "Stop not hit" is the approximate chance the price never reaches the stop level before expiry (about twice the chance of finishing past it), and the win rate needed is worked out from the stop loss instead of the full loss. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
                 </details>`;
@@ -1005,6 +1030,11 @@
                     try { localStorage.setItem('tradeStrat', tradeStrat); } catch (err) {}
                     rerenderAllTrades();
                 }));
+                box.querySelector('[data-role=trim]').addEventListener('change', e => {
+                    tradeTrim = parseFloat(e.target.value);
+                    try { localStorage.setItem('tradeTrim', tradeTrim); } catch (err) {}
+                    rerenderAllTrades();
+                });
                 box.querySelector('[data-role=stop]').addEventListener('change', e => {
                     tradeStop = parseFloat(e.target.value);
                     try { localStorage.setItem('tradeStop', tradeStop); } catch (err) {}
@@ -1030,6 +1060,7 @@
             box.querySelector('[data-role=width]').value = String(tradeWidth);
             box.querySelector('[data-role=risk]').value = String(tradeRisk);
             box.querySelector('[data-role=stop]').value = String(tradeStop);
+            box.querySelector('[data-role=trim]').value = String(tradeTrim);
             box.querySelectorAll('[data-strat]').forEach(b => b.className = b.dataset.strat === tradeStrat ? 'seg-btn on' : 'seg-btn');
 
             const info = PERIOD_INFO[pk];
@@ -1069,7 +1100,7 @@
                     <div class="space-y-2 mt-1">
                     ${tradeStrat === 'condor'
                         ? (ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor'))
-                        : (bp ? tradeBlock(bp, ch, w, r, capital, info) : none('Bull Put Spread'))}
+                        : (bp ? tradeBlock(bp, ch, w, r, capital, info, tk) : none('Bull Put Spread'))}
                     </div>
                 </details>`;
             }).join('');
