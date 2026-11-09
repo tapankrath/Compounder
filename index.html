@@ -156,6 +156,8 @@
         /* Setup step fills the screen exactly: card stretches, rows spread evenly, button at the bottom */
         body.stage-setup { padding-bottom: calc(env(safe-area-inset-bottom) + 10px) !important; }
         body.stage-setup > .max-w-md { display: flex; flex-direction: column; min-height: calc(100svh - env(safe-area-inset-bottom) - 10px); }
+        /* iOS home-screen apps can report a short 100svh; the script below sets the real window height */
+        body.stage-setup.app-h > .max-w-md { min-height: calc(var(--app-h) - env(safe-area-inset-bottom) - 10px); }
         body.stage-setup #viewAlloc { flex: 1; display: flex; flex-direction: column; }
         body.stage-setup #panelInputs { flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-bottom: 14px; }
         body.stage-setup #panelInputs .field + .field { margin-top: 0; }
@@ -380,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-08.8 -->
+    <!-- build 2026-11-08.9 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1280,6 +1282,18 @@
         window.addEventListener('resize', fitHeroes);
         if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeroes);
 
+        // Real window height (iOS standalone apps can under-report CSS viewport units)
+        function sizeApp() {
+            const vv = window.visualViewport ? window.visualViewport.height : 0;
+            const h = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0, vv);
+            if (h > 0) { document.documentElement.style.setProperty('--app-h', h + 'px'); document.body.classList.add('app-h'); }
+        }
+        sizeApp();
+        window.addEventListener('resize', sizeApp);
+        window.addEventListener('orientationchange', () => setTimeout(sizeApp, 300));
+        window.addEventListener('pageshow', sizeApp);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', sizeApp);
+
         // ===================== STEPS: plan -> trades =====================
         function setStage(st) {
             document.body.classList.toggle('stage-setup', st === 'setup');
@@ -1292,6 +1306,7 @@
                 document.querySelectorAll('#calcTrades details[data-ticker]').forEach(x => x.open = true);
             }
             window.scrollTo(0, 0);
+            sizeApp();
             fitHeroes();
         }
 
