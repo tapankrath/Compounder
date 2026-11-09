@@ -5,7 +5,7 @@ Source 1: Cboe's free delayed-quotes feed (15-min delayed, no key, works from Gi
 Source 2: yfinance, used only if Cboe fails for a ticker.
 
 Usage:  python scripts/fetch_options.py [output_path]   (default: options.json)
-Keeps every expiry out to 21 days, then Friday expiries out to 60 days, and only
+Keeps every expiry out to 21 days, then Friday expiries out to 75 days, and only
 strikes within -25% / +25% of spot. Each row is [strike, bid, ask, last, iv].
 """
 import json
@@ -14,7 +14,7 @@ import urllib.request
 from datetime import date, datetime, timezone
 
 TICKERS = ["QQQ", "SPY"]
-MAX_DTE = 60
+MAX_DTE = 75
 ALL_EXPIRIES_UNTIL = 21
 LOW, HIGH = 0.75, 1.25
 
