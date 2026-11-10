@@ -136,7 +136,7 @@
         /* Sticky header */
         #topbar { padding-top: calc(env(safe-area-inset-top) + 8px); transition: padding-top .15s, border-color .15s; border-bottom: 1px solid transparent; }
         #topbar.stuck { padding-top: calc(max(env(safe-area-inset-top), 48px) + 8px); }
-        .tab-btn { padding: 7px 14px; border-radius: 9px; font-size: 15px; font-weight: 700; color: var(--muted); }
+        .tab-btn { white-space: nowrap; padding: 7px 14px; border-radius: 9px; font-size: 15px; font-weight: 700; color: var(--muted); }
         @media (max-width: 380px) { .tab-btn { padding: 7px 10px; font-size: 14px; } }
         .tab-btn.on { background: var(--surface); color: var(--text); }
 
@@ -188,12 +188,12 @@
         <!-- Sticky header -->
         <div id="topbar" class="sticky top-0 z-30 -mx-3 px-3 pb-2.5" style="background: rgb(var(--page) / .9); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px)">
           <div class="head-card">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
                 <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
                 <button id="editPlan" type="button" onclick="setStage('setup')" class="tab-btn shrink-0" style="background: rgba(255,255,255,.92); color: rgb(var(--hero)); font-weight: 700" hidden>← Edit plan</button>
-                <div id="solveSeg" class="seg shrink-0" style="grid-auto-columns:auto; background: var(--surface)">
-                    <button id="solveRate" class="tab-btn" onclick="setSolve('rate')" aria-label="Solve for return needed">% needed</button>
-                    <button id="solveValue" class="tab-btn" onclick="setSolve('value')" aria-label="Solve for end value">End value</button>
+                <div id="solveSeg" class="seg" style="grid-auto-columns:1fr; background: var(--surface); flex: 1 1 100%">
+                    <button id="solveRate" class="tab-btn" onclick="setSolve('rate')" aria-label="Yearly target: set an end value, get the % needed each period">Yearly target</button>
+                    <button id="solveValue" class="tab-btn" onclick="setSolve('value')" aria-label="Period target: set a % per period, see where it ends up">Period target</button>
                 </div>
             </div>
             <div id="heroAllocWrap" class="hero">
@@ -382,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-08.9 -->
+    <!-- build 2026-11-09.1 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -457,7 +457,7 @@
 
             document.getElementById('capVal').textContent = formatUSD(P);
             document.getElementById('yearsVal').textContent = `${t} ${t === 1 ? 'year' : 'years'}`;
-            document.getElementById('rateLabel').textContent = `Return per ${EVERY[period]}`;
+            document.getElementById('rateLabel').textContent = `Target per ${EVERY[period]}`;
             document.getElementById('pullVal').textContent = pullInput.value;
             document.getElementById('keepVal').textContent = 100 - parseFloat(pullInput.value);
             if (document.activeElement !== rateVal) rateVal.value = String(+ratePct.toFixed(2));
@@ -547,7 +547,8 @@
             if (typeof fitHeroes === 'function') fitHeroes();
             document.getElementById('heroSub').innerHTML =
                 `From <b>${formatUSD(P)}</b> in ${t} ${t === 1 ? 'year' : 'years'} at <b>${+ratePct.toFixed(2)}%</b> every ${EVERY[period]}, ${modeWord}.` +
-                (A.use && A.has ? ` With your actual results; plan alone was <b>${formatUSD(planEnd)}</b>.` : '');
+                (A.use && A.has ? ` With your actual results; plan alone was <b>${formatUSD(planEnd)}</b>.` : '') +
+                (isFinite(target) && target > 0 ? ` That's ${total >= target ? `<b>${(total / target).toFixed(1)}×</b>` : `<b>${Math.round(total / target * 100)}%</b> of`} your ${formatUSD(target)} yearly target.` : '');
             }
             calcSummary = `<b class="text-emerald-400">${formatUSD(total)}</b> <span class="text-slate-500">from</span> ${formatUSD(P)}, ${+ratePct.toFixed(2)}% per ${EVERY[period]}, ${t}y`;
             paintRanges();
