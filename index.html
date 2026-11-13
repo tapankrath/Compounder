@@ -382,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-09.1 -->
+    <!-- build 2026-11-13.1 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1249,9 +1249,26 @@
             }
         }
 
-        loadQuotes();
-        setInterval(loadQuotes, 5 * 60 * 1000);
-        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadQuotes(); });
+        // If quotes are over an hour old during market hours, start the GitHub job yourself
+        // (needs the saved GitHub key; GitHub's own schedule sometimes skips runs)
+        let lastAuto = 0;
+        function marketOpenNY() {
+            const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false })
+                .formatToParts(new Date()).map(x => [x.type, x.value]));
+            const hm = (parseInt(p.hour) % 24) * 100 + parseInt(p.minute);
+            return !['Sat', 'Sun'].includes(p.weekday) && hm >= 930 && hm <= 1630;
+        }
+        function autoRefresh() {
+            if (!ghToken || refresh.busy || document.hidden || !marketOpenNY()) return;
+            const age = LIVE && LIVE.updated ? (Date.now() - new Date(LIVE.updated)) / 60000 : Infinity;
+            if (age < 65 || Date.now() - lastAuto < 20 * 60000) return;
+            lastAuto = Date.now();
+            refreshQuotes();
+        }
+        const checkQuotes = () => loadQuotes().then(autoRefresh);
+        checkQuotes();
+        setInterval(checkQuotes, 5 * 60 * 1000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) checkQuotes(); });
         tradesReady = true;
         render();
 
