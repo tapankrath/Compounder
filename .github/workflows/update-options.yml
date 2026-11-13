@@ -2,9 +2,10 @@ name: Update option chains
 
 on:
   schedule:
-    # Hourly at :30, Mon-Fri. GitHub cron is UTC, so this wakes for both daylight-saving and standard time;
-    # the first step skips any run outside 9:30am-4:30pm New York time. Runs can start a few minutes late.
-    - cron: "30 13-21 * * 1-5"
+    # GitHub often drops or delays scheduled runs, so this wakes every 15 minutes (Mon-Fri, both
+    # daylight-saving and standard time in UTC). Each run only fetches when it's 9:30am-4:30pm in
+    # New York AND the saved quotes are at least 50 minutes old, so you get about one update an hour.
+    - cron: "2,17,32,47 13-21 * * 1-5"
   workflow_dispatch: {}
 
 permissions:
@@ -19,27 +20,31 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - name: Only during market hours (9:30am-4:30pm New York)
-        id: hours
-        run: |
-          now=$(TZ=America/New_York date +%H%M)
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || { [ "$now" -ge 925 ] && [ "$now" -le 1659 ]; }; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Outside market hours in New York ($now), skipping"; echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v4
-        if: steps.hours.outputs.run == 'true'
+      - name: Decide whether to fetch (market hours, and quotes at least 50 min old)
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          now=$(TZ=America/New_York date +%-H%M)
+          if [ "$now" -lt 925 ] || [ "$now" -gt 1659 ]; then
+            echo "Outside market hours in New York ($now), skipping"; echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          age=$(python3 -c "import json,datetime as d;u=d.datetime.fromisoformat(json.load(open('options.json'))['updated']);print(int((d.datetime.now(d.timezone.utc)-u).total_seconds()//60))" 2>/dev/null || echo 9999)
+          if [ "$age" -lt 50 ]; then
+            echo "Quotes are only $age min old, skipping"; echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Quotes are $age min old, fetching"; echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-python@v5
-        if: steps.hours.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
       - run: pip install yfinance
-        if: steps.hours.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true'
       - run: python scripts/fetch_options.py "$RUNNER_TEMP/options.json"
-        if: steps.hours.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true'
       - name: Save options.json (newest quotes always win)
-        if: steps.hours.outputs.run == 'true'
+        if: steps.gate.outputs.run == 'true'
         run: |
           git config user.name "options-bot"
           git config user.email "options-bot@users.noreply.github.com"
