@@ -2,10 +2,10 @@ name: Update option chains
 
 on:
   schedule:
-    # GitHub often drops or delays scheduled runs, so this wakes every 15 minutes (Mon-Fri, both
-    # daylight-saving and standard time in UTC). Each run only fetches when it's 9:30am-4:30pm in
-    # New York AND the saved quotes are at least 50 minutes old, so you get about one update an hour.
-    - cron: "2,17,32,47 13-21 * * 1-5"
+    # Backup only: the app refreshes quotes itself when you open it. This saves closing prices once
+    # a day after 4:15pm New York time (two UTC times cover daylight-saving and standard time;
+    # the gate below skips the one that lands outside the window or when quotes are already fresh).
+    - cron: "25 20,21 * * 1-5"
   workflow_dispatch: {}
 
 permissions:
@@ -21,13 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Decide whether to fetch (market hours, and quotes at least 50 min old)
+      - name: Decide whether to fetch (after the close, and quotes at least 50 min old)
         id: gate
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           now=$(TZ=America/New_York date +%-H%M)
-          if [ "$now" -lt 925 ] || [ "$now" -gt 1659 ]; then
-            echo "Outside market hours in New York ($now), skipping"; echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          if [ "$now" -lt 1615 ] || [ "$now" -gt 2100 ]; then
+            echo "Not the after-close window in New York ($now), skipping"; echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           age=$(python3 -c "import json,datetime as d;u=d.datetime.fromisoformat(json.load(open('options.json'))['updated']);print(int((d.datetime.now(d.timezone.utc)-u).total_seconds()//60))" 2>/dev/null || echo 9999)
           if [ "$age" -lt 50 ]; then
