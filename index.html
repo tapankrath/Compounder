@@ -382,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-13.1 -->
+    <!-- build 2026-11-14.1 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1249,26 +1249,47 @@
             }
         }
 
-        // If quotes are over an hour old during market hours, start the GitHub job yourself
-        // (needs the saved GitHub key; GitHub's own schedule sometimes skips runs)
+        // ----- Refresh on open: when the app is opened (or brought back), start the GitHub job if quotes are stale -----
+        // Market open: older than 15 min. Market closed: saved before the last close (so you get closing prices).
+        // Needs the GitHub key saved on this phone; GitHub's own schedule is only a backup.
         let lastAuto = 0;
-        function marketOpenNY() {
-            const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false })
-                .formatToParts(new Date()).map(x => [x.type, x.value]));
-            const hm = (parseInt(p.hour) % 24) * 100 + parseInt(p.minute);
-            return !['Sat', 'Sun'].includes(p.weekday) && hm >= 930 && hm <= 1630;
+        function nyNow() {
+            const now = new Date();
+            const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false })
+                .formatToParts(now).map(x => [x.type, x.value]));
+            const h = parseInt(p.hour) % 24, mi = parseInt(p.minute);
+            const offset = Date.UTC(+p.year, +p.month - 1, +p.day, h, mi) - Math.floor(now.getTime() / 60000) * 60000;  // NY wall clock minus UTC
+            return { now: now.getTime(), y: +p.year, m: +p.month, d: +p.day, wd: p.weekday, hm: h * 100 + mi, offset };
         }
-        function autoRefresh() {
-            if (!ghToken || refresh.busy || document.hidden || !marketOpenNY()) return;
-            const age = LIVE && LIVE.updated ? (Date.now() - new Date(LIVE.updated)) / 60000 : Infinity;
-            if (age < 65 || Date.now() - lastAuto < 20 * 60000) return;
+        function marketOpenNY() { const n = nyNow(); return !['Sat', 'Sun'].includes(n.wd) && n.hm >= 930 && n.hm <= 1630; }
+        // Most recent weekday 4:00pm New York close at or before now, as a timestamp
+        function lastCloseNY() {
+            const n = nyNow();
+            for (let back = 0; back < 7; back++) {
+                const t = Date.UTC(n.y, n.m - 1, n.d - back, 16, 0) - n.offset;
+                const wd = new Date(Date.UTC(n.y, n.m - 1, n.d - back)).getUTCDay();
+                if (wd === 0 || wd === 6 || t > n.now) continue;
+                return t;
+            }
+            return 0;
+        }
+        function quotesStale() {
+            const upd = LIVE && LIVE.updated ? new Date(LIVE.updated).getTime() : 0;
+            if (marketOpenNY()) return Date.now() - upd > 15 * 60000;
+            const close = lastCloseNY();
+            return close > 0 && Date.now() > close + 15 * 60000 && upd < close + 15 * 60000;   // Cboe is 15 min delayed
+        }
+        function refreshOnOpen() {
+            if (!ghToken || refresh.busy || document.hidden) return;
+            if (Date.now() - lastAuto < 10 * 60000 || !quotesStale()) return;
             lastAuto = Date.now();
             refreshQuotes();
         }
-        const checkQuotes = () => loadQuotes().then(autoRefresh);
-        checkQuotes();
-        setInterval(checkQuotes, 5 * 60 * 1000);
-        document.addEventListener('visibilitychange', () => { if (!document.hidden) checkQuotes(); });
+        const openCheck = () => loadQuotes().then(refreshOnOpen);
+        openCheck();                                                      // app opened
+        setInterval(loadQuotes, 5 * 60 * 1000);                           // pick up new quotes while open
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) openCheck(); });   // app brought back
+        window.addEventListener('pageshow', e => { if (e.persisted) openCheck(); });
         tradesReady = true;
         render();
 
