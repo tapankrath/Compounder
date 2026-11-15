@@ -209,7 +209,7 @@
         <div class="panel" id="panelInputs">
             <div class="field">
                 <div class="field-head"><span class="field-label">Capital</span><span id="capVal" class="field-val">$25,000</span></div>
-                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="50000" aria-label="Capital">
+                <input type="range" id="capital" min="10000" max="1000000" step="5000" value="30000" aria-label="Capital">
             </div>
 
             <div class="field">
@@ -252,7 +252,7 @@
                         <span class="field-label">Pull back</span>
                         <span class="text-sm font-bold text-amber-400"><span id="pullVal">25</span>% out, <span id="keepVal">75</span>% kept</span>
                     </div>
-                    <input type="range" id="pull" min="5" max="95" step="5" value="25" aria-label="Pull back each period">
+                    <input type="range" id="pull" min="5" max="95" step="5" value="50" aria-label="Pull back each period">
                     <label class="flex items-center gap-2 mt-1 text-sm font-semibold text-slate-300 cursor-pointer">
                         <input type="checkbox" id="growOn" class="w-4 h-4"> Grow the pull each period
                     </label>
@@ -382,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-14.1 -->
+    <!-- build 2026-11-14.2 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -570,7 +570,7 @@
         [capitalInput, yearsInput, pullInput, growInput, capInput].forEach(el => el.addEventListener('input', render));
         growOn.addEventListener('change', render);
         setCalcMode('split');
-        setPeriod('biweekly');
+        setPeriod('weekly');
         render();
 
         // ===================== ACTUALS (trade log) =====================
