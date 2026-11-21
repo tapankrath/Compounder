@@ -382,7 +382,7 @@
 
     </div>
 
-    <!-- build 2026-11-14.2 -->
+    <!-- build 2026-11-21.3 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -736,6 +736,10 @@
         let tradeStrat = 'bullput';                         // which strategy tab is showing
         try { if (localStorage.getItem('tradeStrat') === 'condor') tradeStrat = 'condor'; } catch (e) {}
         let tradeRisk = 0.50;                               // most of the capital one trade may use as margin
+        let tradeHedge = 0.25;                              // bull put: extra long puts per spread (0.25 = 1 put for every 4 spreads; 0 = off)
+        try { const h = localStorage.getItem('tradeHedge2'); if (h !== null && parseFloat(h) >= 0 && parseFloat(h) <= 1) tradeHedge = parseFloat(h); } catch (e) {}
+        let tradeHedgeDist = 0.10;                          // hedge puts sit this far below today's price
+        try { const h = parseFloat(localStorage.getItem('tradeHedgeDist')); if (h > 0 && h < 0.5) tradeHedgeDist = h; } catch (e) {}
         let tradeTrim = 0;                                  // trade this share fewer contracts than the target needs (0 = full size)
         try { const h = parseFloat(localStorage.getItem('tradeTrim')); if (h >= 0 && h < 1) tradeTrim = h; } catch (e) {}
         let tradeStop = 0.50;                               // close the trade when the loss reaches this share of its margin (1 = no stop)
@@ -827,18 +831,28 @@
         // Bull put spread: walk in from the furthest strike and take the first one whose return on margin
         // reaches rNeed (= target / max share of capital at risk), so the target is met within the risk limit.
         // Sizing later uses just enough capital to hit the target.
-        function findBullPut(ch, w, rNeed) {
+        // q = protective puts per spread, bought at the ask, same expiry, at the strike nearest to
+        // `dist` below today's price (or the spread's long strike, if that is already lower)
+        function findBullPut(ch, w, rNeed, q = 0, dist = 0.1) {
+            const hStrikes = [...ch.puts.keys()].filter(k => k <= ch.spot * (1 - dist)).sort((a, b) => b - a);
             const ks = [...ch.puts.keys()].filter(k => k < ch.spot && ch.puts.has(k - w)).sort((a, b) => a - b);
             for (const k of ks) {
                 const sh = ch.puts.get(k), lg = ch.puts.get(k - w);
                 if (sh.quoted === false || Math.abs(sh.delta) < 0.02) continue;   // skip stale or near-zero quotes
                 const credit = sh.mid - lg.mid;
                 if (credit < MIN_CREDIT || credit >= w) continue;
-                const ror = credit / (w - credit);
+                const H = q > 0 ? (hStrikes.find(x => x <= k - w) ?? null) : null;   // hedge strike
+                if (q > 0 && H == null) continue;
+                const ho = H != null ? ch.puts.get(H) : null;
+                const hp = ho ? (ho.ask || ho.mid) : 0;              // price of one hedge put
+                const net = credit - q * hp, capU = (w - credit) + q * hp;   // per spread, hedge included
+                if (net < MIN_CREDIT) continue;
+                const ror = net / capU;
                 if (ror < rNeed) continue;
-                const be = k - credit;
+                const be = k - net;
                 return { kind: 'bullput', short: k, long: k - w, credit, ror, delta: sh.delta,
-                         pop: probAbove(ch.spot, be, ch.T, sh.iv), be: [be] };
+                         pop: probAbove(ch.spot, be, ch.T, sh.iv), be: [be],
+                         q, hp, capU, H, ivH: ho ? ho.iv : lg.iv, ror0: credit / (w - credit) };
             }
             return null;
         }
@@ -889,14 +903,18 @@
 
         function tradeBlock(t, ch, w, r, capital, info, tk) {
             const maxProfit = t.credit * 100, maxLoss = (w - t.credit) * 100;
+            const hedged = t.kind === 'bullput' && t.q > 0;
+            const unitCap = hedged ? t.capU * 100 : maxLoss;           // money in the trade per spread (+ its share of puts)
             const frac = Math.min(1, r / t.ror);                 // share of capital used as margin
-            const fullN = Math.floor(capital * frac / maxLoss);       // contracts that hit the target
+            const fullN = Math.floor(capital * frac / unitCap);       // spreads that hit the target
             const contracts = Math.floor(fullN * (1 - tradeTrim));    // what you'd actually trade
+            const hN = hedged && contracts >= 1 ? Math.max(1, Math.round(contracts * t.q)) : 0;   // extra puts
+            const hCost = hN * (t.hp || 0) * 100;
             const legs = t.kind === 'bullput'
-                ? `Sell ${fmtK(t.short)}P / Buy ${fmtK(t.long)}P`
+                ? `Sell ${fmtK(t.short)}P / Buy ${fmtK(t.long)}P${hedged ? `<br><span class="text-sky-300">+ Buy ${hN} × ${fmtK(t.H)}P</span> <span class="text-xs font-normal text-slate-400">(hedge, same expiry)</span>` : ''}`
                 : `Sell ${fmtK(t.putShort)}P / Buy ${fmtK(t.putLong)}P<br>Sell ${fmtK(t.callShort)}C / Buy ${fmtK(t.callLong)}C`;
             const pctTxt = x => (x * 100).toFixed(1) + '%';
-            const collect = contracts * maxProfit, margin = contracts * maxLoss;
+            const collect = contracts * maxProfit - hCost, margin = contracts * maxLoss + hCost;
             const allocRet = capital > 0 ? collect / capital : 0;
 
             // Stop-loss: close when the loss reaches tradeStop x the margin in the trade
@@ -915,11 +933,14 @@
                 pTouch = Math.min(1, Math.max(0, pTouch));
             }
             const lossPer = hasStop ? stopLossSh * 100 : maxLoss;    // planned loss per contract
-            const pWin = hasStop ? 1 - pTouch : t.pop;
-            const beWin = lossPer / (lossPer + maxProfit);
+            // Hedged: worst case is at the long strike (= all the money in the trade); below it the extra puts win money back
+            const hedgeBE = hedged && hN > 0 ? t.H - margin / (hN * 100) : null;         // price where the whole position is back to even
+            const popHedged = hedged ? t.pop + (hedgeBE > 0 ? 1 - probAbove(ch.spot, hedgeBE, ch.T, t.ivH) : 0) : t.pop;
+            const pWin = hasStop ? 1 - pTouch : popHedged;
+            const planLoss = contracts * lossPer + hCost;          // with a stop, the puts' cost is counted as lost (conservative)
+            const beWin = planLoss / (planLoss + Math.max(collect, 1));
             const edgeOk = pWin >= beWin;
-            const planLoss = contracts * lossPer;
-            const lossPeriods = lossPer / maxProfit;
+            const lossPeriods = planLoss / Math.max(collect, 1);
             const trigTxt = !hasStop ? '' : t.kind === 'bullput' ? `price falls to ~$${fmt2(trigLo)}` : `price leaves ~$${fmt2(trigLo)}–$${fmt2(trigHi)}`;
 
             // Trim size: same trade, fewer contracts; compare with full size
@@ -928,7 +949,31 @@
             const tRow = (label, per) => `<tr class="border-t border-slate-700"><td class="py-1 pr-1 text-slate-400">${label}</td>
                 <td class="text-right whitespace-nowrap pl-1 ${col(per)}">${sgn(fullN * per)}</td>
                 <td class="text-right whitespace-nowrap pl-1 font-bold ${col(per)}">${sgn(contracts * per)}</td></tr>`;
-            const trimBox = !(tradeTrim > 0) || fullN < 1 ? '' : `
+            // Hedge box: same strikes with and without the extra puts, each sized to the same target
+            // Compare with the trade picked when the hedge is off (same target, same margin limit)
+            const alt = hedged ? findBullPut(ch, w, r / tradeRisk, 0) : null;
+            const n0 = alt ? Math.floor(Math.floor(capital * Math.min(1, r / alt.ror) / ((w - alt.credit) * 100)) * (1 - tradeTrim)) : 0;
+            const posAt = (x, sp, n, h) => contracts < 1 || !sp ? 0 :   // whole position at expiry if the price is x
+                n * (sp.credit - Math.max(0, sp.short - x) + Math.max(0, sp.long - x)) * 100 + h * (Math.max(0, (sp.H || 0) - x) - (sp.hp || 0)) * 100;
+            const hRow = (label, x) => { const a = posAt(x, alt, n0, 0), b = posAt(x, t, contracts, hN);
+                return `<tr class="border-t border-slate-700"><td class="py-1 pr-1 text-slate-400">${label}</td><td class="text-right whitespace-nowrap pl-1 ${col(a)}">${sgn(a)}</td><td class="text-right whitespace-nowrap pl-1 font-bold ${col(b)}">${sgn(b)}</td></tr>`; };
+            const worstDiff = hedged && alt ? posAt(t.H, t, contracts, hN) - posAt(alt.long, alt, n0, 0) : 0;   // each at its own worst
+            const hedgeBox = !hedged || contracts < 1 ? '' : `
+                <div class="mt-2 px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-[0.75rem] text-slate-300">
+                    <div><b class="text-slate-100">Hedge:</b> ${hN} × ${fmtK(t.H)} puts (${pctTxt(1 - t.H / ch.spot)} below today) cost ${formatUSD(hCost)}. The spread pays for them and you still earn ${pctTxt(allocRet)}. The spread's loss stops growing at $${fmtK(t.long)}; below $${fmtK(t.H)} the puts start paying, and the whole position is even again at about <b class="text-slate-100">$${fmt2(hedgeBE)}</b>.</div>
+                    <table class="w-full mt-1.5 tabular-nums">
+                        <tr class="text-slate-500"><th class="text-left font-semibold">At expiry, if…</th><th class="text-right font-semibold pl-2 align-bottom">No hedge<div class="font-normal whitespace-nowrap text-[0.68rem]">${alt ? `${n0} × ${fmtK(alt.short)}/${fmtK(alt.long)}` : '—'}</div></th><th class="text-right font-semibold pl-2 align-bottom">Hedged<div class="font-normal whitespace-nowrap text-[0.68rem]">${contracts} × ${fmtK(t.short)}/${fmtK(t.long)}</div><div class="font-normal whitespace-nowrap text-[0.68rem]">+ ${hN} × ${fmtK(t.H)}P</div></th></tr>
+                        ${hRow(`Stays above $${fmtK(Math.max(t.short, alt ? alt.short : 0))}`, Math.max(t.short, alt ? alt.short : 0) + 1)}
+                        ${hRow(`Falls 5% to $${fmt2(ch.spot * 0.95)}`, ch.spot * 0.95)}
+                        ${hRow(`At $${fmtK(t.H)} (hedge's worst)`, t.H)}
+                        ${hRow(`Falls 10% to $${fmt2(ch.spot * 0.9)}`, ch.spot * 0.9)}
+                        ${hRow(`Falls 20% to $${fmt2(ch.spot * 0.8)}`, ch.spot * 0.8)}
+                        ${hRow(`Falls 30% to $${fmt2(ch.spot * 0.7)}`, ch.spot * 0.7)}
+                    </table>
+                    <div class="mt-1 text-slate-500">${alt ? `Chance of profit: ~${Math.round(popHedged * 100)}% hedged vs ~${Math.round(alt.pop * 100)}% without. ` : ''}Its worst case (between $${fmtK(t.H)} and $${fmtK(t.long)}) is ${formatUSD(Math.abs(worstDiff))} ${worstDiff < 0 ? 'larger' : 'smaller'} than the no-hedge trade's worst case, and paying for the puts ${alt && t.short > alt.short ? `moves the spread closer to the price ($${fmtK(t.short)} instead of $${fmtK(alt.short)}), so a small dip hurts sooner` : 'keeps the spread where it was'}. It pays off only in a big drop.</div>
+                </div>`;
+
+            const trimBox = hedged || !(tradeTrim > 0) || fullN < 1 ? '' : `
                 <div class="mt-2 px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-[0.75rem] text-slate-300">
                     <div><b class="text-slate-100">Trimmed ${Math.round(tradeTrim * 100)}%:</b> ${contracts} contracts instead of ${fullN}. You earn ${pctTxt(allocRet)} instead of ${pctTxt(fullN * maxProfit / capital)} on capital, and every loss shrinks by the same share.</div>
                     <table class="w-full mt-1.5 tabular-nums">
@@ -941,8 +986,8 @@
 
             tradeBlock.lastRet = contracts >= 1 ? allocRet : null;
             const sizeLine = contracts < 1
-                ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(maxLoss / frac)}).</span>`
-                : `<b class="text-slate-100">${contracts}</b> contract${contracts === 1 ? '' : 's'} · ${formatUSD(margin)} in the trade (${pctTxt(margin / capital)} of capital) · ${formatUSD(capital - margin)} stays in cash`;
+                ? `<span class="text-rose-400">Capital too small for 1 contract (needs ${formatUSD(unitCap / frac)}).</span>`
+                : `<b class="text-slate-100">${contracts}</b> ${hedged ? 'spread' : 'contract'}${contracts === 1 ? '' : 's'}${hedged ? ` + <b class="text-slate-100">${hN}</b> extra put${hN === 1 ? '' : 's'}` : ''} · ${formatUSD(margin)} in the trade (${pctTxt(margin / capital)} of capital) · ${formatUSD(capital - margin)} stays in cash`;
             return `
                 <div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50">
                     <div class="flex justify-between items-baseline">
@@ -952,19 +997,20 @@
                     <div class="text-sm font-semibold text-slate-100 mt-1 leading-snug">${legs}</div>
                     ${contracts < 1 ? '' : `<div class="grid grid-cols-2 gap-2 mt-2 text-center">
                         <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">If it expires OTM</div><div class="text-sm font-bold text-emerald-400">+${formatUSD(collect)}</div><div class="text-[0.68rem] text-slate-500">${pctTxt(allocRet)} of capital</div></div>
-                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">${hasStop ? 'If the stop is hit' : 'Max loss'}</div><div class="text-sm font-bold text-rose-400">−${formatUSD(planLoss)}</div><div class="text-[0.68rem] text-slate-500">${hasStop ? `${Math.round(tradeStop * 100)}% of trade · ` : '100% of trade · '}${pctTxt(planLoss / capital)} of capital</div></div>
+                        <div class="py-2 rounded-lg bg-slate-800 border border-slate-700"><div class="text-[0.7rem] text-slate-500">${hasStop ? 'If the stop is hit' : hedged ? `Max loss (at $${fmtK(t.H)})` : 'Max loss'}</div><div class="text-sm font-bold text-rose-400">−${formatUSD(planLoss)}</div><div class="text-[0.68rem] text-slate-500">${hasStop ? `${Math.round(tradeStop * 100)}% of trade · ` : '100% of trade · '}${pctTxt(planLoss / capital)} of capital</div></div>
                     </div>`}
                     ${hasStop && contracts >= 1 ? `<div class="mt-2 px-2.5 py-2 rounded-lg bg-slate-800 border border-slate-700 text-[0.75rem] text-slate-300">
                         <b class="text-slate-100">Stop:</b> buy back at <b class="text-slate-100">$${fmt2(stopVal)}</b> (opened at $${fmt2(t.credit)}), about when the ${trigTxt}.
                         <span class="text-slate-500">A gap past the stop can still cost up to the full ${formatUSD(margin)}.</span></div>` : ''}
                     <div class="grid grid-cols-3 gap-x-2 gap-y-1 text-[0.75rem] mt-2 tabular-nums">
                         <div><span class="text-slate-500">Credit / sh</span><br>$${fmt2(t.credit)}</div>
-                        <div><span class="text-slate-500">Max loss / sh</span><br>$${fmt2(w - t.credit)}</div>
+                        <div><span class="text-slate-500">${hedged ? 'Even again at' : 'Max loss / sh'}</span><br>${hedged ? '$' + fmt2(hedgeBE) : '$' + fmt2(w - t.credit)}</div>
                         <div><span class="text-slate-500">Short Δ</span><br>${fmt2(Math.abs(t.delta))}</div>
                         <div><span class="text-slate-500">Breakeven</span><br>${t.be.map(fmt2).join(' / ')}</div>
                         <div><span class="text-slate-500">${hasStop ? 'Stop not hit' : 'Prob. profit'}</span><br><span class="${edgeOk ? 'text-emerald-400' : 'text-amber-400'}">~${Math.round(pWin * 100)}%</span></div>
                         <div><span class="text-slate-500">Win rate req.</span><br>${Math.round(beWin * 100)}%</div>
                     </div>
+                    ${hedgeBox}
                     ${trimBox}
                     <div class="text-[0.75rem] text-slate-400 mt-2">${sizeLine}</div>
                     <div class="text-[0.75rem] text-slate-500 mt-1">${hasStop ? 'One stopped-out trade' : 'One full loss'} wipes out ~${lossPeriods < 10 ? lossPeriods.toFixed(1) : Math.round(lossPeriods)} winning ${info.plural}.</div>
@@ -1005,6 +1051,16 @@
                             <select data-role="risk" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Most of your capital one trade may use">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}% of capital</option>`).join('')}
                             </select></label>
+                        <div data-role="hedgewrap" class="col-span-2 grid grid-cols-2 gap-x-3">
+                        <label class="text-[0.75rem] text-slate-400">Hedge puts
+                            <select data-role="hedge" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Protective puts per spread">
+                                ${[[0, 'Off'], [0.2, '1 per 5 spreads'], [0.25, '1 per 4 spreads'], [0.5, '1 per 2 spreads']].map(([d, l]) => `<option value="${d}" ${d === tradeHedge ? 'selected' : ''}>${l}</option>`).join('')}
+                            </select></label>
+                        <label class="text-[0.75rem] text-slate-400">Hedge strike
+                            <select data-role="hdist" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="How far below today's price the hedge puts sit">
+                                ${[0.05, 0.10, 0.15].map(d => `<option value="${d}" ${d === tradeHedgeDist ? 'selected' : ''}>${Math.round(d * 100)}% below price</option>`).join('')}
+                            </select></label>
+                        </div>
                         <label class="text-[0.75rem] text-slate-400">Trim size
                             <select data-role="trim" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Trade fewer contracts than the target needs">
                                 ${[0, 0.1, 0.2, 0.3].map(d => `<option value="${d}" ${d === tradeTrim ? 'selected' : ''}>${d ? d * 100 + '% fewer' : 'Off'}</option>`).join('')}
@@ -1023,7 +1079,7 @@
                     <div data-role="head" class="text-sm text-slate-300"></div>
                     <details class="sec text-[0.68rem] text-slate-500 leading-snug" data-remember="trades-help">
                         <summary class="text-[0.8rem] font-semibold text-slate-400"><span class="chev mr-1" style="font-size:15px">›</span>How these are picked</summary>
-                        <div class="mt-1">Trim size trades that share fewer contracts than the target needs: you earn less per period, and every loss shrinks by the same share. On these spreads that protects more, for the same profit given up, than buying puts as a hedge. Margin up to caps how much of your capital one trade may use; strikes start far from the price and move closer only until the spread earns your target within that cap. Stop at closes the trade when its loss reaches that share of the money in the trade; "Stop not hit" is the approximate chance the price never reaches the stop level before expiry (about twice the chance of finishing past it), and the win rate needed is worked out from the stop loss instead of the full loss. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
+                        <div class="mt-1">Hedge puts (bull put only) buys protective puts with the same expiry, at Hedge strike below today's price, and picks a spread that pays for them so you still hit the target: in a big drop the puts win back the spread's loss, but the worst case is a little larger, the chance of profit barely changes, and the spread may sit closer to the price. Trim size trades that share fewer contracts than the target needs: you earn less per period, and every loss shrinks by the same share. On these spreads that protects more, for the same profit given up, than buying puts as a hedge. Margin up to caps how much of your capital one trade may use; strikes start far from the price and move closer only until the spread earns your target within that cap. Stop at closes the trade when its loss reaches that share of the money in the trade; "Stop not hit" is the approximate chance the price never reaches the stop level before expiry (about twice the chance of finishing past it), and the win rate needed is worked out from the stop loss instead of the full loss. Sizing puts just enough capital at risk to earn the target; the rest stays in cash. Model output, not advice. Credits use mid prices; real fills are often a little lower, and commissions aren't included. "On allocation" is the credit collected divided by your full capital, if the spread expires worthless; "on margin" is the same credit divided by only the money at risk. prob. profit is the market-implied chance of finishing past breakeven. When prob. profit is below the win rate needed, the trade loses money on average.</div>
                     </details>
                 </div>
                 </details>`;
@@ -1045,6 +1101,16 @@
                     try { localStorage.setItem('tradeStrat', tradeStrat); } catch (err) {}
                     rerenderAllTrades();
                 }));
+                box.querySelector('[data-role=hedge]').addEventListener('change', e => {
+                    tradeHedge = parseFloat(e.target.value);
+                    try { localStorage.setItem('tradeHedge2', tradeHedge); } catch (err) {}
+                    rerenderAllTrades();
+                });
+                box.querySelector('[data-role=hdist]').addEventListener('change', e => {
+                    tradeHedgeDist = parseFloat(e.target.value);
+                    try { localStorage.setItem('tradeHedgeDist', tradeHedgeDist); } catch (err) {}
+                    rerenderAllTrades();
+                });
                 box.querySelector('[data-role=trim]').addEventListener('change', e => {
                     tradeTrim = parseFloat(e.target.value);
                     try { localStorage.setItem('tradeTrim', tradeTrim); } catch (err) {}
@@ -1076,6 +1142,10 @@
             box.querySelector('[data-role=risk]').value = String(tradeRisk);
             box.querySelector('[data-role=stop]').value = String(tradeStop);
             box.querySelector('[data-role=trim]').value = String(tradeTrim);
+            box.querySelector('[data-role=hedge]').value = String(tradeHedge);
+            box.querySelector('[data-role=hdist]').value = String(tradeHedgeDist);
+            box.querySelector('[data-role=hdist]').disabled = !(tradeHedge > 0);
+            box.querySelector('[data-role=hedgewrap]').hidden = tradeStrat !== 'bullput';
             box.querySelectorAll('[data-strat]').forEach(b => b.className = b.dataset.strat === tradeStrat ? 'seg-btn on' : 'seg-btn');
 
             const info = PERIOD_INFO[pk];
@@ -1110,8 +1180,8 @@
                 }
                 const expTxt = ch.exp ? `${fmtDate(ch.exp)} · ${ch.dte} DTE` : `~${ch.dte} DTE`;
                 const rNeed = r / tradeRisk;
-                const bp = findBullPut(ch, w, rNeed), ic = findCondor(ch, w, rNeed);
-                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin). Raise Margin up to.</div>`;
+                const bp = findBullPut(ch, w, rNeed, tradeHedge, tradeHedgeDist), ic = findCondor(ch, w, rNeed);
+                const none = kind => `<div class="p-3 bg-slate-900/70 rounded-lg border border-slate-700/50 text-xs text-slate-400"><b class="${kind === 'Bull Put Spread' ? 'text-sky-300' : 'text-fuchsia-300'}">${kind}</b>: no $${w}-wide spread at this expiry earns ${+ratePctIn.toFixed(2)}% with ${Math.round(tradeRisk * 100)}% or less of capital at risk (it would need ${(rNeed * 100).toFixed(1)}% on margin).${kind === 'Bull Put Spread' && tradeHedge > 0 ? ' That includes paying for the hedge puts: move Hedge strike further below the price, use fewer hedge puts, or raise Margin up to.' : ' Raise Margin up to.'}</div>`;
                 tradeBlock.lastRet = null;
                 const card = tradeStrat === 'condor'
                     ? (ic ? tradeBlock(ic, ch, w, r, capital, info) : none('Iron Condor'))
