@@ -171,6 +171,8 @@
         .hero-reach .short { color: #F4CD85; font-weight: 700; }
         body.stage-setup .hero-reach { display: none; }
 
+        body.stage-trades a[href="calendars.html"] { display: none; }
+
         /* Two steps: set the plan, then see trades with the plan pinned on top */
         body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
         body.stage-trades #panelInputs { display: none; }
@@ -190,6 +192,7 @@
           <div class="head-card">
             <div class="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap">
                 <h1 class="text-[1.1rem] font-extrabold tracking-tight text-slate-100 truncate min-w-0">Compounder</h1>
+                <a href="calendars.html" class="tab-btn shrink-0 ml-auto" style="background: rgba(0,0,0,.18); color: rgba(255,255,255,.9); font-weight: 700; text-decoration: none" aria-label="Open the Calendars page">Calendars ›</a>
                 <button id="editPlan" type="button" onclick="setStage('setup')" class="tab-btn shrink-0" style="background: rgba(255,255,255,.92); color: rgb(var(--hero)); font-weight: 700" hidden>← Edit plan</button>
                 <div id="solveSeg" class="seg" style="grid-auto-columns:1fr; background: var(--surface); flex: 1 1 100%">
                     <button id="solveRate" class="tab-btn" onclick="setSolve('rate')" aria-label="Yearly target: set an end value, get the % needed each period">Yearly target</button>
@@ -382,7 +385,7 @@
 
     </div>
 
-    <!-- build 2026-11-21.3 -->
+    <!-- build 2026-11-21.4 -->
 
     <script>
         // ===================== ALLOCATOR =====================
