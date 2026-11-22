@@ -7,6 +7,9 @@ Source 2: yfinance, used only if Cboe fails for a ticker.
 Usage:  python scripts/fetch_options.py [output_path]   (default: options.json)
 Keeps every expiry out to 21 days, then Friday expiries out to 75 days, and only
 strikes within -25% / +25% of spot. Each row is [strike, bid, ask, last, iv].
+
+Also saves about a year of daily closes for each ticker's volatility index (VXN for QQQ,
+VIX for SPY) so the Calendars page can tell whether volatility is high or low right now.
 """
 import json
 import sys
@@ -17,6 +20,8 @@ TICKERS = ["QQQ", "SPY"]
 MAX_DTE = 75
 ALL_EXPIRIES_UNTIL = 21
 LOW, HIGH = 0.75, 1.25
+VOL_INDEX = {"QQQ": "VXN", "SPY": "VIX"}
+VOL_DAYS = 260          # about one trading year
 
 
 def keep_expiry(d, today):
@@ -79,6 +84,36 @@ def from_yfinance(symbol):
     return {"spot": round(spot, 2), "expiries": expiries, "source": "Yahoo"}
 
 
+def vol_from_cboe(name):
+    """Daily closes from Cboe's public history file: DATE,OPEN,HIGH,LOW,CLOSE (dates MM/DD/YYYY)."""
+    url = f"https://cdn.cboe.com/api/global/us_indices/daily_prices/{name}_History.csv"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (options-bot)"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        lines = r.read().decode("utf-8", "replace").strip().splitlines()
+    out = []
+    for ln in lines[1:]:
+        p = ln.split(",")
+        if len(p) < 5:
+            continue
+        try:
+            d = datetime.strptime(p[0].strip(), "%m/%d/%Y").date().isoformat()
+            out.append([d, round(float(p[4]), 2)])
+        except ValueError:
+            continue
+    if len(out) < 50:
+        raise ValueError("too few rows")
+    return out[-VOL_DAYS:]
+
+
+def vol_from_yfinance(name):
+    import yfinance as yf
+    h = yf.Ticker("^" + name).history(period="13mo")["Close"]
+    out = [[i.date().isoformat(), round(float(v), 2)] for i, v in h.items()]
+    if len(out) < 50:
+        raise ValueError("too few rows")
+    return out[-VOL_DAYS:]
+
+
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else "options.json"
     data = {"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "tickers": {}}
@@ -93,6 +128,17 @@ def main():
                 print(f"{s}: {fn.__name__} failed: {e}")
     if not data["tickers"]:
         sys.exit("No data from any source")
+    # Volatility index history (optional: the quotes are saved even if this fails)
+    data["volIndex"] = {}
+    for s, name in VOL_INDEX.items():
+        for fn in (vol_from_cboe, vol_from_yfinance):
+            try:
+                hist = fn(name)
+                data["volIndex"][s] = {"name": name, "hist": hist}
+                print(f"{name}: {len(hist)} days, last {hist[-1]}")
+                break
+            except Exception as e:
+                print(f"{name}: {fn.__name__} failed: {e}")
     with open(path, "w") as f:
         json.dump(data, f, separators=(",", ":"))
     print("wrote", path)
