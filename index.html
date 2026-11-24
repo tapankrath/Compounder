@@ -172,6 +172,7 @@
         body.stage-setup .hero-reach { display: none; }
 
         body.stage-trades a[href="calendars.html"] { display: none; }
+        [data-role=hedgewrap][hidden] { display: none !important; }
 
         /* Two steps: set the plan, then see trades with the plan pinned on top */
         body.stage-setup #tradesCard, body.stage-setup #moreList { display: none; }
@@ -385,7 +386,7 @@
 
     </div>
 
-    <!-- build 2026-11-23.1 -->
+    <!-- build 2026-11-23.2 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -1133,12 +1134,24 @@
                             <button type="button" data-strat="bullput" class="seg-btn">Bull put</button>
                             <button type="button" data-strat="condor" class="seg-btn">Iron condor</button>
                         </div>
-                        <div class="grid grid-cols-2 gap-x-3 gap-y-2 w-full">
+                        <div class="grid grid-cols-2 gap-x-3 gap-y-2 w-full items-end">
                         <label class="text-[0.75rem] text-slate-400">Margin up to
                             <select data-role="risk" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Most of your capital one trade may use">
                                 ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeRisk ? 'selected' : ''}>${d * 100}% of capital</option>`).join('')}
                             </select></label>
-                        <div data-role="hedgewrap" class="col-span-2 grid grid-cols-2 gap-x-3">
+                        <label class="text-[0.75rem] text-slate-400">Width
+                            <select data-role="width" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200">
+                                ${[1, 2, 5, 10].map(w => `<option value="${w}" ${w === tradeWidth ? 'selected' : ''}>$${w}</option>`).join('')}
+                            </select></label>
+                        <label class="text-[0.75rem] text-slate-400">Stop at
+                            <select data-role="stop" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Stop-loss as a share of the trade">
+                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeStop ? 'selected' : ''}>${d === 1 ? 'No stop' : d * 100 + '% of trade'}</option>`).join('')}
+                            </select></label>
+                        <label class="text-[0.75rem] text-slate-400">Trim size
+                            <select data-role="trim" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Trade fewer contracts than the target needs">
+                                ${[0, 0.1, 0.2, 0.3].map(d => `<option value="${d}" ${d === tradeTrim ? 'selected' : ''}>${d ? d * 100 + '% fewer' : 'Off'}</option>`).join('')}
+                            </select></label>
+                        <div data-role="hedgewrap" class="contents">
                         <label class="text-[0.75rem] text-slate-400">Hedge puts
                             <select data-role="hedge" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Protective puts per spread">
                                 ${[[0, 'Off'], [0.2, '1 per 5 spreads'], [0.25, '1 per 4 spreads'], [0.5, '1 per 2 spreads']].map(([d, l]) => `<option value="${d}" ${d === tradeHedge ? 'selected' : ''}>${l}</option>`).join('')}
@@ -1148,18 +1161,6 @@
                                 ${[0.05, 0.10, 0.15].map(d => `<option value="${d}" ${d === tradeHedgeDist ? 'selected' : ''}>${Math.round(d * 100)}% below price</option>`).join('')}
                             </select></label>
                         </div>
-                        <label class="text-[0.75rem] text-slate-400">Trim size
-                            <select data-role="trim" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Trade fewer contracts than the target needs">
-                                ${[0, 0.1, 0.2, 0.3].map(d => `<option value="${d}" ${d === tradeTrim ? 'selected' : ''}>${d ? d * 100 + '% fewer' : 'Off'}</option>`).join('')}
-                            </select></label>
-                        <label class="text-[0.75rem] text-slate-400">Stop at
-                            <select data-role="stop" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200" aria-label="Stop-loss as a share of the trade">
-                                ${[0.25, 0.5, 0.75, 1].map(d => `<option value="${d}" ${d === tradeStop ? 'selected' : ''}>${d === 1 ? 'No stop' : d * 100 + '% of trade'}</option>`).join('')}
-                            </select></label>
-                        <label class="text-[0.75rem] text-slate-400">Width
-                            <select data-role="width" class="block w-full mt-0.5 bg-slate-700 border border-slate-600 rounded px-1 py-1 text-sm text-slate-200">
-                                ${[1, 2, 5, 10].map(w => `<option value="${w}" ${w === tradeWidth ? 'selected' : ''}>$${w}</option>`).join('')}
-                            </select></label>
                         </div>
                     </div>
                     <div data-role="results" class="space-y-3"></div>
