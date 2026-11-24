@@ -385,7 +385,7 @@
 
     </div>
 
-    <!-- build 2026-11-21.4 -->
+    <!-- build 2026-11-23.1 -->
 
     <script>
         // ===================== ALLOCATOR =====================
@@ -407,7 +407,8 @@
         // What the page solves for: 'rate' (return needed to hit a target) or 'value' (end value at a given return)
         var solveMode = 'rate';
         var solveOut = false;
-        var planCtx = null;     // capital, periods and pull schedule of the current plan, for the header's "trades earn" line   // target can't be reached under 100% per period
+        var planCtx = null;
+        var nextTrade = null;   // capital and % the trade ideas are sized on right now     // capital, periods and pull schedule of the current plan, for the header's "trades earn" line   // target can't be reached under 100% per period
 
         function formatUSD(num) {
             return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
@@ -531,8 +532,20 @@
                 : calcMode === 'simple' ? `${+ratePct.toFixed(2)}% every period, all pulled out: ${formatUSD(P * r)} per period on a flat ${formatUSD(P)} balance.`
                 : growing ? `${+ratePct.toFixed(2)}% every period: pull starts at ${pullPct}% of the gain and rises ${growInput.value}% of itself each period (capped at ${Math.round(Math.max(cap, f) * 100)}%). The rest is reinvested.`
                 : `${+ratePct.toFixed(2)}% every period: ${pullPct}% of the gain pulled out, ${100 - pullPct}% reinvested, so the balance grows ${+effRate.toFixed(3)}% per period (≈ ${+growAnnual.toFixed(1)}% / yr) and the payout grows with it.`;
-            planCtx = { P, periods, pullAt, goal: solveMode === 'rate' ? target : total };
-            if (tradesReady) renderTrades('calcTrades', period, solveOut ? null : ratePct, P, '');
+            // Next trade: once results are logged, size on the balance after them (gains split per Pull back)
+            // and aim for the return still needed to finish on target (or your period target)
+            let tradeCap = P, tradeRate = solveOut ? null : ratePct, tradeNote = '';
+            const useAct = A.use && A.has && actNext && actNext.lastActual >= 1 && actNext.left > 0;
+            if (useAct) {
+                tradeCap = actNext.bal;
+                tradeRate = solveMode === 'rate' ? (actNext.need == null ? null : actNext.need * 100) : ratePct;
+                tradeNote = `next trade (${info.short}${actNext.lastActual + 1}) on your balance after logged trades` +
+                    (actNext.pulled > 0 ? `, ${formatUSD(actNext.pulled)} pulled out so far` : '') +
+                    (solveMode === 'rate' ? `; the rate still needed to reach ${formatUSD(planEnd)}` : '');
+            }
+            nextTrade = { cap: tradeCap, rate: tradeRate, useAct };
+            planCtx = { P, periods, pullAt, goal: solveMode === 'rate' ? target : total, A: useAct ? A : null };
+            if (tradesReady) renderTrades('calcTrades', period, tradeRate, tradeCap, tradeNote);
             const modeWord = { compound: 'compounded', simple: 'simple, gains pulled out', split: `split, ${pullPct}% pulled` }[calcMode];
             // Astronomical results get a short form so the hero stays readable
             if (solveMode === 'rate') {
@@ -540,7 +553,9 @@
                 document.getElementById('heroSub').innerHTML = solveOut
                     ? `No return under 100% per period gets <b>${formatUSD(P)}</b> to <b>${formatUSD(target || 0)}</b> in ${t} ${t === 1 ? 'year' : 'years'}.`
                     : `Needed every ${EVERY[period]}, ${modeWord}, to turn <b>${formatUSD(P)}</b> into <b>${formatUSD(target)}</b> in ${t} ${t === 1 ? 'year' : 'years'}.` +
-                      (A.use && A.has ? ` With your actual results you'd end at <b>${formatUSD(total)}</b>.` : '');
+                      (nextTrade && nextTrade.useAct && nextTrade.rate != null
+                        ? ` Next trade needs <b>${+nextTrade.rate.toFixed(2)}%</b> on <b>${formatUSD(nextTrade.cap)}</b>.`
+                        : A.use && A.has ? ` With your actual results you'd end at <b>${formatUSD(total)}</b>.` : '');
                 if (typeof fitHeroes === 'function') fitHeroes();
             } else {
             document.getElementById('heroVal').textContent = total >= 1e15
@@ -613,6 +628,17 @@
             return bal + pulled;
         }
 
+        // Invested balance and pulled-out cash after the first `upto` periods, using logged results
+        function balAfter(P, upto, pullAt, A) {
+            let bal = P, pulled = 0;
+            for (let i = 1; i <= upto; i++) {
+                const g = A.byP[i] || 0, out = g > 0 ? g * pullAt(i) : 0;
+                bal += g - out; pulled += out;
+            }
+            return { bal, pulled };
+        }
+        var actNext = null;   // what the next trade should be sized on (set by renderActuals)
+
         function renderActuals(A, c) {
             const n = A.closed.length, wins = A.closed.filter(t => t.pl > 0).length;
             const realized = A.closed.reduce((s, t) => s + t.pl, 0);
@@ -630,6 +656,7 @@
                     need = hi;
                 }
             }
+            actNext = { n, lastActual, left, need, ...balAfter(c.P, lastActual, c.pullAt, A) };
             const pct = x => (x * 100).toFixed(x !== 0 && Math.abs(x) < 0.1 ? 2 : 1) + '%';
             const tile = (k, v, cls) => `<div class="py-2.5 px-2 rounded-xl bg-slate-900 text-center"><div class="text-[0.7rem] text-slate-400">${k}</div><div class="text-sm font-bold ${cls || 'text-slate-100'} mt-0.5">${v}</div></div>`;
             document.getElementById('actTag').textContent = n ? `${realized >= 0 ? '+' : '−'}${formatUSD(Math.abs(realized))} · ${n} trade${n === 1 ? '' : 's'}` : (A.open.length ? `${A.open.length} open` : '');
@@ -707,6 +734,62 @@
         aEl('actUse').addEventListener('change', () => { ACT.use = aEl('actUse').checked; saveACT(); render(); });
         aEl('actStart').value = planStart();
         aEl('actStart').addEventListener('change', () => { ACT.start = aEl('actStart').value; saveACT(); render(); });
+        // ----- Last trade: one tap to log "hit target", so the next trade is sized on the new balance -----
+        const PERIOD_DAYS = { weekly: 7, biweekly: 14, monthly: 30 };
+        let lastLogged = null;   // id of the entry added by the button (for Undo)
+        const shiftDay = (iso, d) => { const x = parseDay(iso); x.setDate(x.getDate() + d); return new Date(x.getTime() - x.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+        function thisPeriodEntry(pk) {
+            if (!ACT.trades.length) return null;
+            const cur = periodOf(isoToday(), pk);
+            return ACT.trades.find(t => t.out && periodOf(t.out, pk) === cur) || null;
+        }
+        function renderLastRow(el, pk) {
+            if (!el) return;
+            const word = { weekly: 'week', biweekly: '2 weeks', monthly: 'month' }[pk];
+            const logged = thisPeriodEntry(pk);
+            const btn = 'px-3 py-1.5 rounded-lg text-[0.8rem] font-bold';
+            if (logged) {
+                el.innerHTML = `<div class="flex items-center justify-between gap-2 flex-wrap p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-[0.8rem]">
+                    <span class="text-slate-300">This ${word}'s result is logged: <b class="${logged.pl >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${logged.pl >= 0 ? '+' : '−'}${formatUSD(Math.abs(logged.pl))}</b>. Trades below are sized for the next one.</span>
+                    ${lastLogged === logged.id ? `<button type="button" onclick="undoLastLogged()" class="${btn} border border-slate-600 text-slate-300">Undo</button>` : ''}
+                </div>`;
+                return;
+            }
+            const ok = nextTrade && nextTrade.rate != null && nextTrade.cap > 0;
+            const gain = ok ? nextTrade.cap * nextTrade.rate / 100 : 0;
+            el.innerHTML = `<div class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-[0.8rem] space-y-2">
+                <div class="text-slate-300">Closed a trade this ${word}? Log it and the next trade is sized on your new balance, with gains split ${Math.round(pullFraction() * 100)}% out / ${100 - Math.round(pullFraction() * 100)}% kept.</div>
+                <div class="flex gap-2 flex-wrap">
+                    <button type="button" onclick="logHitTarget()" ${ok ? '' : 'disabled'} class="${btn} ${ok ? '' : 'opacity-50'}" style="background: var(--gold); color: rgb(var(--on-acc))">✓ Hit target ${ok ? '(+' + formatUSD(gain) + ')' : ''}</button>
+                    <button type="button" onclick="logOtherResult()" class="${btn} border border-slate-600 text-slate-300">Log a different result</button>
+                </div>
+            </div>`;
+        }
+        function logHitTarget() {
+            if (!nextTrade || nextTrade.rate == null) return;
+            const days = PERIOD_DAYS[period], tin = shiftDay(isoToday(), -(days - 1)), tout = isoToday();
+            const amt = Math.round(nextTrade.cap * 100) / 100, pl = Math.round(nextTrade.cap * nextTrade.rate) / 100;
+            if (!ACT.start) ACT.start = tin;
+            const id = Date.now().toString(36);
+            ACT.trades.push({ id, in: tin, out: tout, amt, pl, note: `Hit target (${+nextTrade.rate.toFixed(2)}%)` });
+            ACT.use = true; aEl('actUse').checked = true; aEl('actStart').value = planStart();
+            lastLogged = id; saveACT(); render();
+        }
+        function undoLastLogged() {
+            ACT.trades = ACT.trades.filter(t => t.id !== lastLogged); lastLogged = null;
+            if (!ACT.trades.length) ACT.start = '';
+            aEl('actStart').value = planStart(); saveACT(); render();
+        }
+        function logOtherResult() {
+            const d = document.querySelector('details[data-remember=actuals]'); if (d) d.open = true;
+            resetForm();
+            const days = PERIOD_DAYS[period];
+            aEl('actIn').value = shiftDay(isoToday(), -(days - 1)); aEl('actOut').value = isoToday();
+            if (nextTrade && nextTrade.cap) aEl('actAmt').value = Math.round(nextTrade.cap).toLocaleString('en-US');
+            aEl('actFormTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => aEl('actPl').focus(), 400);
+        }
+
         var actualsReady = true;
         resetForm();
         render();
@@ -1031,6 +1114,7 @@
                         <span class="flex items-center gap-2"><span data-role="sumtag" class="row-tag"></span><span class="chev">›</span></span>
                     </summary>
                 <div class="px-[20px] pb-4 space-y-3">
+                    <div data-role="lastrow"></div>
                     <div data-role="source" class="text-[0.75rem]"></div>
                     <details data-role="mktbox" class="sec text-xs">
                         <summary class="text-[0.8rem] text-slate-400 font-semibold"><span class="chev mr-1" style="font-size:15px">›</span>Market inputs, used when there's no live data</summary>
@@ -1147,11 +1231,12 @@
             box.querySelector('[data-role=trim]').value = String(tradeTrim);
             box.querySelector('[data-role=hedge]').value = String(tradeHedge);
             box.querySelector('[data-role=hdist]').value = String(tradeHedgeDist);
-            box.querySelector('[data-role=hdist]').disabled = !(tradeHedge > 0);
+            box.querySelector('[data-role=hdist]').closest('label').hidden = !(tradeHedge > 0);
             box.querySelector('[data-role=hedgewrap]').hidden = tradeStrat !== 'bullput';
             box.querySelectorAll('[data-strat]').forEach(b => b.className = b.dataset.strat === tradeStrat ? 'seg-btn on' : 'seg-btn');
 
             const info = PERIOD_INFO[pk];
+            if (containerId === 'calcTrades') renderLastRow(box.querySelector('[data-role=lastrow]'), pk);
             const head = box.querySelector('[data-role=head]');
             const src = box.querySelector('[data-role=source]');
             const res = box.querySelector('[data-role=results]');
@@ -1208,7 +1293,8 @@
             if (!vals.length || !planCtx || !(planCtx.goal > 0)) { el.innerHTML = ''; return; }
             const big = v => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: v >= 1e6 ? 'compact' : 'standard', maximumFractionDigits: v >= 1e6 ? 2 : 0 }).format(v);
             const parts = vals.map(([tk, v]) => {
-                const end = simulateTotal(planCtx.P, v, planCtx.periods, planCtx.pullAt);
+                const end = planCtx.A ? totalWithActuals(planCtx.P, v, planCtx.periods, planCtx.pullAt, planCtx.A)
+                                      : simulateTotal(planCtx.P, v, planCtx.periods, planCtx.pullAt);
                 const ok = end >= planCtx.goal * 0.995;
                 return `${tk} <b>${(v * 100).toFixed(2)}%</b> → <span class="${ok ? 'ok' : 'short'}">${big(end)}</span>`;
             });
